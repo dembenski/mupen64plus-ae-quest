@@ -1,3 +1,4 @@
+#include <algorithm>
 // Hand tracking for Vapor64 VR (XR_EXT_hand_tracking).
 // See hand_tracking.h and quest-xr/HAND_TRACKING.md.
 
@@ -123,7 +124,7 @@ void HandTracker::destroy() {
 
 bool HandTracker::locateJoints(int hand, XrTime time, XrHandJointLocationEXT* joints, bool& active) {
     active = false;
-    XrHandJointLocateInfoEXT locateInfo{XR_TYPE_HAND_JOINT_LOCATE_INFO_EXT};
+    XrHandJointsLocateInfoEXT locateInfo{XR_TYPE_HAND_JOINTS_LOCATE_INFO_EXT};
     locateInfo.baseSpace = mLocalSpace;
     locateInfo.time = time;
 
