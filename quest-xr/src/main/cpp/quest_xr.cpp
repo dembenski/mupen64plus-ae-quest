@@ -267,6 +267,12 @@ struct XrState {
 
     bool passthroughSupported = false;
     PassthroughFns passthroughFns;
+
+    // Hand tracking (XR_EXT_hand_tracking): gestures drive the same input the
+    // Touch controllers produce. Controllers always win while they are in use.
+    bool handTrackingSupported = false;
+    std::atomic<bool> handTrackingEnabled{true};
+    questxr::HandTracker handTracker;
     XrPassthroughFB passthrough = XR_NULL_HANDLE;
     XrPassthroughLayerFB passthroughLayer = XR_NULL_HANDLE;
     std::atomic<bool> passthroughWanted{false};
