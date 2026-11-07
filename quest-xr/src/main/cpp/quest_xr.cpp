@@ -1773,6 +1773,9 @@ bool createXrSession(XrState& xr, jint gameWidth, jint gameHeight, jint menuWidt
     xr.passthroughSupported = hasInstanceExtension(XR_FB_PASSTHROUGH_EXTENSION_NAME);
     LOGI("%s available: %d", XR_FB_PASSTHROUGH_EXTENSION_NAME, xr.passthroughSupported);
 
+    xr.handTrackingSupported = hasInstanceExtension(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+    LOGI("%s available: %d", XR_EXT_HAND_TRACKING_EXTENSION_NAME, xr.handTrackingSupported);
+
     XrInstanceCreateInfoAndroidKHR androidInfo{XR_TYPE_INSTANCE_CREATE_INFO_ANDROID_KHR};
     androidInfo.applicationVM = gVm;
     androidInfo.applicationActivity = xr.activity;
