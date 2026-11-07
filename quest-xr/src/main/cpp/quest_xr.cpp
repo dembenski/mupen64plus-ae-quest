@@ -18,6 +18,7 @@
 #include <openxr/openxr_platform.h>
 
 #include "controller_model.h"
+#include "hand_tracking.h"
 
 #include <algorithm>
 #include <atomic>
