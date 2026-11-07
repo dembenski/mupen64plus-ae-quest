@@ -1784,6 +1784,9 @@ bool createXrSession(XrState& xr, jint gameWidth, jint gameHeight, jint menuWidt
     if (xr.passthroughSupported) {
         extensions.push_back(XR_FB_PASSTHROUGH_EXTENSION_NAME);
     }
+    if (xr.handTrackingSupported) {
+        extensions.push_back(XR_EXT_HAND_TRACKING_EXTENSION_NAME);
+    }
 
     XrInstanceCreateInfo instanceInfo{XR_TYPE_INSTANCE_CREATE_INFO};
     instanceInfo.next = &androidInfo;
