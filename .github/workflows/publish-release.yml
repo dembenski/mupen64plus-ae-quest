@@ -1,0 +1,43 @@
+name: Publish Vapor64 VR v0.1.0 release (temporary)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          run-id: 42394253825
+          name: mupen64plus-ae-master-67bd7cf
+          path: artifact
+      - name: Locate APK
+        run: |
+          ls -lhR artifact
+          APK=$(find artifact -name '*.apk' | head -n 1)
+          test -n "$APK"
+          cp "$APK" ./Mupen64PlusAE-release.apk
+          ls -lh Mupen64PlusAE-release.apk
+      - name: Create and publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v0.1.0
+          target_commitish: master
+          name: Vapor64 VR v0.1.0 — first build with hand tracking
+          body: |
+            First public build of Vapor64 VR — the standalone N64-in-VR Quest app, forked from Mupen64Plus-AE Quest, with hand tracking added.
+
+            Hand tracking: pinch to press buttons, palms act as sticks (left palm = analog stick, right palm = C-buttons), fist = D-pad modifier. Controllers always win when picked up.
+
+            BRING YOUR OWN ROMS — no games are included. Sideload the APK on Quest, then load your own legally-dumped N64 ROMs.
+
+            Known: this is an early build, hand tracking is untested on a real headset. Please report what you find.
+          files: Mupen64PlusAE-release.apk
+          draft: false
+          prerelease: false
