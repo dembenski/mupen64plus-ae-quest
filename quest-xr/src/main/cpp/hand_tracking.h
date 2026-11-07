@@ -41,7 +41,6 @@ struct HandInput {
 };
 
 class HandTracker {
-
 public:
     // Loads the XR_EXT_hand_tracking functions and creates one tracker per
     // hand. Returns false when the extension is unavailable; the caller then
@@ -60,7 +59,6 @@ public:
     const HandInput& input(int hand) const { return mInput[hand]; }
 
 private:
-
     struct Fns {
         PFN_xrCreateHandTrackerEXT create = nullptr;
         PFN_xrDestroyHandTrackerEXT destroy = nullptr;
