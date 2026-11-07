@@ -1,4 +1,4 @@
-# M64Plus Quest
+# Vapor64 VR
 
 **N64 on the Meta Quest, in VR, with the Touch controllers.**
 
