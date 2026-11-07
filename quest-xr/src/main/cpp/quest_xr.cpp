@@ -2160,6 +2160,19 @@ Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetPassthrough(JNIEnv
     gXr->passthroughWanted = enabled;
     return JNI_TRUE;
 }
+JNIEXPORT void JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetHandTrackingEnabled(JNIEnv*, jclass,
+                                                                                 jboolean enabled) {
+    if (gXr != nullptr) {
+        gXr->handTrackingEnabled = enabled;
+    }
+}
+
+// True when the runtime supports hand tracking and it was enabled for this session
+JNIEXPORT jboolean JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeIsHandTrackingAvailable(JNIEnv*, jclass) {
+    return gXr != nullptr && gXr->handTrackingSupported ? JNI_TRUE : JNI_FALSE;
+}
 
 JNIEXPORT void JNICALL
 Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeStart(JNIEnv*, jclass) {
