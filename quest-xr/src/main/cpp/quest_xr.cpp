@@ -1792,7 +1792,7 @@ bool createXrSession(XrState& xr, jint gameWidth, jint gameHeight, jint menuWidt
     instanceInfo.next = &androidInfo;
     instanceInfo.enabledExtensionCount = static_cast<uint32_t>(extensions.size());
     instanceInfo.enabledExtensionNames = extensions.data();
-    strncpy(instanceInfo.applicationInfo.applicationName, "M64Plus Quest", XR_MAX_APPLICATION_NAME_SIZE);
+    strncpy(instanceInfo.applicationInfo.applicationName, "Vapor64 VR", XR_MAX_APPLICATION_NAME_SIZE);
     instanceInfo.applicationInfo.applicationVersion = 1;
     strncpy(instanceInfo.applicationInfo.engineName, "mupen64plus-ae", XR_MAX_ENGINE_NAME_SIZE);
     instanceInfo.applicationInfo.engineVersion = 1;
