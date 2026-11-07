@@ -1458,12 +1458,12 @@ void renderFrame(XrState& xr, JNIEnv* env) {
         return;
     }
 
+    const XrTime time = frameState.predictedDisplayTime;
     if (xr.sessionState == XR_SESSION_STATE_FOCUSED) {
-        syncInput(env, xr);
+        syncInput(env, xr, time);
     }
     updatePassthrough(xr);
 
-    const XrTime time = frameState.predictedDisplayTime;
     XrPosef handPoses[HAND_COUNT];
     const XrPosef* hands[HAND_COUNT] = {nullptr, nullptr};
     for (int hand = 0; hand < HAND_COUNT; ++hand) {
