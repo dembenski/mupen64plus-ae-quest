@@ -12,14 +12,20 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          run-id: 42394253825
-          name: mupen64plus-ae-master-67bd7cf
-          path: artifact
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh api repos/dembenski/mupen64plus-ae-quest/actions/runs/42394253825/artifacts --jq '.artifacts[] | "\(.id) \(.name) expired=\(.expired)"'
+          ARTIFACT_ID=$(gh api repos/dembenski/mupen64plus-ae-quest/actions/runs/42394253825/artifacts --jq '.artifacts[] | select(.name=="mupen64plus-ae-master-67bd7cf") | .id')
+          test -n "$ARTIFACT_ID"
+          echo "Artifact ID: $ARTIFACT_ID"
+          gh api repos/dembenski/mupen64plus-ae-quest/actions/artifacts/${ARTIFACT_ID}/zip > artifact.zip
+          ls -lh artifact.zip
+          mkdir -p artifact
+          unzip -o artifact.zip -d artifact
+          ls -lhR artifact
       - name: Locate APK
         run: |
-          ls -lhR artifact
           APK=$(find artifact -name '*.apk' | head -n 1)
           test -n "$APK"
           cp "$APK" ./Mupen64PlusAE-release.apk
