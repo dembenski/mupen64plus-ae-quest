@@ -39,7 +39,7 @@ android {
     buildFeatures.buildConfig = true
 
     defaultConfig {
-        applicationId = "org.mupen64plusae.v3.quest"
+        applicationId = "com.8bitvapor.vapor64vr"
     }
     signingConfigs {
         if (hasReleaseSigning) {
