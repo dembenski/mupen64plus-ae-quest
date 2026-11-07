@@ -39,7 +39,7 @@ android {
     buildFeatures.buildConfig = true
 
     defaultConfig {
-        applicationId = "com.8bitvapor.vapor64vr"
+        applicationId = "com.eightbitvapor.vapor64vr"
     }
     signingConfigs {
         if (hasReleaseSigning) {
