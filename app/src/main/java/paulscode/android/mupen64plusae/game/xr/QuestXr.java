@@ -298,6 +298,20 @@ public class QuestXr
         return sLibraryLoaded && nativeSetPassthrough(enabled);
     }
 
+    /** Enable or disable hand-tracking input. Controllers always win while they are in use. */
+    public static void setHandTrackingEnabled(boolean enabled)
+    {
+        if (sLibraryLoaded) {
+            nativeSetHandTrackingEnabled(enabled);
+        }
+    }
+
+    /** @return True if the runtime supports hand tracking and it was enabled for this session */
+    public static boolean isHandTrackingAvailable()
+    {
+        return sLibraryLoaded && nativeIsHandTrackingAvailable();
+    }
+
     private static native boolean nativeCreate(Activity activity, Listener listener, int gameWidth, int gameHeight,
                                                int menuWidth, int menuHeight, int controllerWidth,
                                                int controllerHeight, int dockWidth, int dockHeight);
@@ -316,6 +330,8 @@ public class QuestXr
     private static native void nativeSetController3dVisible(boolean visible);
     private static native void nativeRecenterScreen(float distance, float width);
     private static native boolean nativeSetPassthrough(boolean enabled);
+    private static native void nativeSetHandTrackingEnabled(boolean enabled);
+    private static native boolean nativeIsHandTrackingAvailable();
     private static native void nativeStart();
     private static native void nativeDestroy();
 }
