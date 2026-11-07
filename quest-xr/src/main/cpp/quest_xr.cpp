@@ -2180,6 +2180,7 @@ Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeIsHandTrackingAvailab
     return gXr != nullptr && gXr->handTrackingSupported ? JNI_TRUE : JNI_FALSE;
 }
 
+
 JNIEXPORT void JNICALL
 Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeStart(JNIEnv*, jclass) {
     if (gXr == nullptr || gXr->frameThread.joinable()) {
