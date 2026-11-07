@@ -517,7 +517,7 @@ bool getBool(XrState& xr, ActionId id) {
     return XR_SUCCEEDED(xrGetActionStateBoolean(xr.session, &info, &state)) && state.isActive && state.currentState;
 }
 
-void syncInput(JNIEnv* env, XrState& xr) {
+void syncInput(JNIEnv* env, XrState& xr, XrTime time) {
     XrActiveActionSet active{xr.actionSet, XR_NULL_PATH};
     XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
     syncInfo.countActiveActionSets = 1;
@@ -543,6 +543,45 @@ void syncInput(JNIEnv* env, XrState& xr) {
     if (getBool(xr, ACT_LSTICK_CLICK)) buttons |= BTN_LSTICK;
     if (getBool(xr, ACT_RSTICK_CLICK)) buttons |= BTN_RSTICK;
     input.buttons = buttons;
+
+    // Hand tracking overlays the same input when a controller is idle: a hand's
+    // gestures only fill in for the hand whose controller produced nothing
+    // this frame. Mapping (see HAND_TRACKING.md): left palm = analog stick,
+    // left pinches = L / Z / R, right palm = C-buttons, right pinches = A / B /
+    // X / Menu, right fist = D-pad modifier.
+    if (xr.handTrackingEnabled.load() && xr.handTracker.available()) {
+        xr.handTracker.update(time);
+        const bool controllerActive[HAND_COUNT] = {
+            std::fabs(input.sticks[HAND_LEFT].x) > 0.15f || std::fabs(input.sticks[HAND_LEFT].y) > 0.15f ||
+                input.triggers[HAND_LEFT] > 0.1f || input.grips[HAND_LEFT] > 0.1f ||
+                (buttons & (BTN_X | BTN_Y | BTN_MENU | BTN_LSTICK)) != 0,
+            std::fabs(input.sticks[HAND_RIGHT].x) > 0.15f || std::fabs(input.sticks[HAND_RIGHT].y) > 0.15f ||
+                input.triggers[HAND_RIGHT] > 0.1f || input.grips[HAND_RIGHT] > 0.1f ||
+                (buttons & (BTN_A | BTN_B | BTN_MENU | BTN_RSTICK)) != 0,
+        };
+        for (int hand = 0; hand < HAND_COUNT; ++hand) {
+            if (controllerActive[hand]) {
+                continue;
+            }
+            const questxr::HandInput& handInput = xr.handTracker.input(hand);
+            if (!handInput.active) {
+                continue;
+            }
+            input.sticks[hand] = handInput.stick;
+            if (hand == HAND_LEFT) {
+                if (handInput.indexPinch) input.triggers[HAND_LEFT] = 1.0f;  // N64 L
+                if (handInput.middlePinch) input.grips[HAND_LEFT] = 1.0f;  // N64 Z
+                if (handInput.ringPinch) input.triggers[HAND_RIGHT] = 1.0f;  // N64 R
+            } else {
+                if (handInput.indexPinch) buttons |= BTN_A;  // N64 A
+                if (handInput.middlePinch) buttons |= BTN_B;  // N64 B
+                if (handInput.ringPinch) buttons |= BTN_X;
+                if (handInput.littlePinch) buttons |= BTN_MENU;  // tap = Start, hold = VR menu
+                if (handInput.fist) input.grips[HAND_RIGHT] = 1.0f;  // D-pad modifier
+            }
+        }
+        input.buttons = buttons;
+    }
 
     env->CallVoidMethod(xr.listener, xr.onInput,
                         input.sticks[HAND_LEFT].x, input.sticks[HAND_LEFT].y,
