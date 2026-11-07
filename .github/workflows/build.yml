@@ -3,7 +3,7 @@ name: M64Plus Quest
 # Upstream also published a rolling "Pre-release" tag from here on every push to master. That job
 # pushed a tag with the workflow token, which this repository does not allow, so it failed on every
 # build; releases here are cut by hand and versioned, so it is gone rather than fixed.
-on: [push, pull_request]
+on: [push, pull_request, workflow_dispatch]
 
 jobs:
   build:
