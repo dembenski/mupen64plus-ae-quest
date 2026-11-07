@@ -423,6 +423,7 @@ void destroyXr(JNIEnv* env, XrState* xr) {
     }
     if (xr->passthroughLayer != XR_NULL_HANDLE) xr->passthroughFns.destroyLayer(xr->passthroughLayer);
     if (xr->passthrough != XR_NULL_HANDLE) xr->passthroughFns.destroy(xr->passthrough);
+    xr->handTracker.destroy();
     for (XrSpace handSpace : xr->handSpaces) {
         if (handSpace != XR_NULL_HANDLE) xrDestroySpace(handSpace);
     }
