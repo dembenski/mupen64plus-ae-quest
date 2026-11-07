@@ -1854,6 +1854,12 @@ bool createXrSession(XrState& xr, jint gameWidth, jint gameHeight, jint menuWidt
     if (!createActions(xr)) {
         return false;
     }
+    if (xr.handTrackingSupported &&
+        !xr.handTracker.init(xr.instance, xr.session, xr.space, xr.viewSpace)) {
+        LOGI("Hand tracking unavailable, continuing with controllers only");
+        xr.handTrackingSupported = false;
+    }
+
 
     if (xr.passthroughSupported && !createPassthrough(xr)) {
         xr.passthroughSupported = false;
