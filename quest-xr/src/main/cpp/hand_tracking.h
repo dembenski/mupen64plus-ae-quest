@@ -41,6 +41,7 @@ struct HandInput {
     bool ringPinch = false;  // thumb tip to ring fingertip
     bool littlePinch = false;  // thumb tip to little fingertip
     bool fist = false;  // all four fingertips curled to the palm
+    XrPosef palmPose = {};  // palm joint pose in LOCAL space, valid when active
 };
 
 class HandTracker {
