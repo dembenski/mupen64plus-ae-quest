@@ -1051,14 +1051,14 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
     }
 
     for (int hand = 0; hand < HAND_COUNT; ++hand) {
-        if (xr.input.grips[hand] > 0.7f && hands[hand] == nullptr && !xr.grabBlockedLogged) {
+        if (xr.input.grips[hand] > 0.7f && grabHands[hand] == nullptr && !xr.grabBlockedLogged) {
             xr.grabBlockedLogged = true;
-            LOGE("Grip %d pressed but the controller pose is not tracked", hand);
+            LOGE("Grip %d pressed but the hand pose is not tracked", hand);
         }
-        if (xr.input.grips[hand] > 0.7f && hands[hand] != nullptr) {
+        if (xr.input.grips[hand] > 0.7f && grabHands[hand] != nullptr) {
             std::lock_guard<std::mutex> lock(xr.quadMutex);
             xr.grabHand = hand;
-            xr.grabOffset = sub(xr.quads[QUAD_GAME].settings.position, hands[hand]->position);
+            xr.grabOffset = sub(xr.quads[QUAD_GAME].settings.position, grabHands[hand]->position);
             LOGI("Screen grabbed with hand %d", hand);
             return;
         }
