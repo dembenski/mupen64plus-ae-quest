@@ -593,6 +593,8 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
                 mXrControllerMode = xrPrefs.getInt(XR_PREF_CONTROLLER_MODE, QuestN64Overlay.MODE_HANDS);
                 mXrPassthroughSupported = QuestXr.setPassthrough(xrPrefs.getBoolean(XR_PREF_PASSTHROUGH, false));
                 mXrPassthrough = mXrPassthroughSupported && xrPrefs.getBoolean(XR_PREF_PASSTHROUGH, false);
+                // AR mode is a floating screen, never fullscreen: passthrough wins over immersive
+                if (mXrPassthrough) QuestXr.setImmersiveGame(false);
                 loadXrScreen();
                 updateXrQuads();
                 QuestXr.loadControllerModel(getAssets());
