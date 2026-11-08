@@ -28,7 +28,9 @@ public class QuestN64Overlay
     /** This 2D overlay below the game screen */
     public static final int MODE_SCREEN = 1;
     public static final int MODE_OFF = 2;
-    public static final int MODE_COUNT = 3;
+    /** 3D controller placed in the room, picked up and moved by hand */
+    public static final int MODE_VIRTUAL = 3;
+    public static final int MODE_COUNT = 4;
 
     // Logical drawing size, scaled to the surface
     private static final float LOGICAL_WIDTH = 768;
