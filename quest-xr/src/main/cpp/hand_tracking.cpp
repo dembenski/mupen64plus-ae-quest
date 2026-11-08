@@ -259,4 +259,4 @@ void HandTracker::update(XrTime time) {
     }
 }
 
-}  // namespace questxr
+}}  // namespace questxr
