@@ -200,6 +200,11 @@ public class Ps1SpikeActivity extends Activity implements QuestXr.Listener, Surf
     }
 
     @Override
+    public void onXrControllerMoved(float x, float y, float z, float yaw)
+    {
+    }
+
+    @Override
     public void onXrPointer(int quad, float u, float v, boolean pressed)
     {
     }
