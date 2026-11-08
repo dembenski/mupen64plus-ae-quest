@@ -117,6 +117,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
     private static final String STATE_HAND_TRACKING_RIGHT_POPUP = "STATE_HAND_TRACKING_RIGHT_POPUP";
     private static final String STATE_HAND_TRACKING_START_POPUP = "STATE_HAND_TRACKING_START_POPUP";
     private static final String STATE_HAND_TRACKING_TIPS_POPUP = "STATE_HAND_TRACKING_TIPS_POPUP";        
+    private static final String STATE_AR_PLACE_POPUP = "STATE_AR_PLACE_POPUP";
+    private static final String STATE_AR_TIPS_POPUP = "STATE_AR_TIPS_POPUP";
     public static final String KEY_IS_LEANBACK = "KEY_IS_LEANBACK";
     public static final String KEY_IS_SHORTCUT = "KEY_IS_SHORTCUT";
 
