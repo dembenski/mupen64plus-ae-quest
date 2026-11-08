@@ -98,6 +98,7 @@ import paulscode.android.mupen64plusae.game.xr.QuestXr;
 import paulscode.android.mupen64plusae.input.AbstractController;
 import paulscode.android.mupen64plusae.input.QuestTouchController;
 import paulscode.android.mupen64plusae.input.TouchController;
+import paulscode.android.mupen64plusae.input.map.InputMap;
 import paulscode.android.mupen64plusae.input.map.VisibleTouchMap;
 import paulscode.android.mupen64plusae.input.provider.AbstractProvider;
 import paulscode.android.mupen64plusae.input.provider.AxisProvider;
@@ -109,6 +110,7 @@ import paulscode.android.mupen64plusae.netplay.NetplayFragment;
 import paulscode.android.mupen64plusae.netplay.room.NetplayClientSetupDialog;
 import paulscode.android.mupen64plusae.netplay.room.NetplayServerSetupDialog;
 import paulscode.android.mupen64plusae.persistent.AppData;
+import paulscode.android.mupen64plusae.persistent.ConfigFile;
 import paulscode.android.mupen64plusae.persistent.GamePrefs;
 import paulscode.android.mupen64plusae.persistent.GlobalPrefs;
 import paulscode.android.mupen64plusae.jni.CoreTypes.PakType;
@@ -210,6 +212,10 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     private static final String XR_PREF_CONTROLLER_Y = "controller_y";
     private static final String XR_PREF_CONTROLLER_Z = "controller_z";
     private static final String XR_PREF_CONTROLLER_YAW = "controller_yaw";
+    // Built-in keyboard map on/off; the name must match GalleryActivity's XR_PREFS.
+    private static final String XR_PREF_KEYBOARD = "keyboard_enabled";
+    // Built-in keyboard profile: the name must match the [Keyboard] section in controller.cfg.
+    private static final String KEYBOARD_PROFILE_NAME = "Keyboard";
     private static final int XR_MENU_WIDTH = 1024;
     private static final int XR_MENU_HEIGHT = 1480;
     private static final float XR_MENU_SIZE = 0.85f;
@@ -236,6 +242,8 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     private boolean mXrPlacingController = false;
     private QuestNetplayMenu mQuestNetplayMenu;
     private int mXrControllerMode = QuestN64Overlay.MODE_HANDS;
+    // Built-in keyboard map enabled (default on; takes effect the next game started).
+    private boolean mXrKeyboardEnabled = true;
     // Placed virtual controller pose in the tracking space
     private float mXrControllerX = 0.0f;
     private float mXrControllerY = -0.1f;
@@ -601,6 +609,7 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
 
                 final SharedPreferences xrPrefs = getSharedPreferences(XR_PREFS, MODE_PRIVATE);
                 mXrControllerMode = xrPrefs.getInt(XR_PREF_CONTROLLER_MODE, QuestN64Overlay.MODE_HANDS);
+                mXrKeyboardEnabled = xrPrefs.getBoolean(XR_PREF_KEYBOARD, true);
                 mXrPassthroughSupported = QuestXr.setPassthrough(xrPrefs.getBoolean(XR_PREF_PASSTHROUGH, false));
                 mXrPassthrough = mXrPassthroughSupported && xrPrefs.getBoolean(XR_PREF_PASSTHROUGH, false);
                 // AR mode is a floating screen, never fullscreen: passthrough wins over immersive
@@ -822,6 +831,9 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
         super.onPause();
         Log.i(TAG, "onPause");
         RetroAchievementsManager.setGameLoadListener(null);
+        // A key held across a pause would otherwise suppress the hands
+        // forever (its key-up never arrives).
+        AbstractController.clearKeyboardInput();
         if (mTrackerContainer != null) {
             mTrackerContainer.removeAllViews();
             mLeaderboardTrackers.clear();
@@ -1338,6 +1350,21 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
         mXrControllerMode = mode;
         updateXrQuads();
         getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putInt(XR_PREF_CONTROLLER_MODE, mode).apply();
+    }
+
+    @Override
+    public boolean isKeyboardEnabled()
+    {
+        return mXrKeyboardEnabled;
+    }
+
+    @Override
+    public void setKeyboardEnabled(boolean enabled)
+    {
+        // Takes effect the next game started: the player 1 controller map is
+        // chosen once, in initSingleController, at game start.
+        mXrKeyboardEnabled = enabled;
+        getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putBoolean(XR_PREF_KEYBOARD, enabled).apply();
     }
 
     @Override
@@ -2420,12 +2447,75 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     private void initSingleController(int player, ControllerProfile p)
     {
         if(p != null) {
+            // v0.1.4: a paired keyboard just works. Keyboards are never
+            // auto-mapped (see onKey), and the built-in gamepad profiles
+            // already map the same key codes by accident (a gamepad D-pad
+            // and a keyboard's arrows are both key codes 19-22, and the
+            // IME axis encodings collide with W/A/S/D) — so "has no key
+            // mappings" cannot tell a keyboard mapping from a gamepad one.
+            // The reliable test is the profile itself: built-in profiles
+            // are read-only, so a player on one has never mapped keys. In
+            // that case, when a hardware keyboard is connected, no gamepad
+            // is connected, and the keyboard map is enabled, use the
+            // built-in Keyboard profile's map for this session only. The
+            // user's saved profile is never changed: a custom profile (made
+            // by mapping keys yourself) always wins, and players 2-4 are
+            // untouched.
+            InputMap map = p.getMap();
+            if( player == 1 && mXrKeyboardEnabled && p.isBuiltin()
+                    && isHardwareKeyboardConnected() && !isHardwareGamepadConnected() )
+            {
+                ControllerProfile keyboardProfile = getBuiltinKeyboardProfile();
+                if( keyboardProfile != null )
+                {
+                    map = keyboardProfile.getMap();
+                    Log.i( TAG, "Player 1 using built-in Keyboard profile" );
+                }
+            }
            new PeripheralController( mCoreFragment, mGameSurface, mGlobalPrefs, mRomGoodName,
-                   player, mGamePrefs.playerMap, p.getMap(), p.getAutoDeadzone(),
+                   player, mGamePrefs.playerMap, map, p.getAutoDeadzone(),
                    p.getDeadzone(), p.getSensitivityX(), p.getSensitivityY(), mGlobalPrefs.holdControllerBottons,
                    mOverlay, this, null, mKeyProvider, mAxisProvider);
             Log.i(TAG, "Player " + player + " controller has been enabled");
         }
+    }
+
+    /** True when a hardware keyboard (Bluetooth or USB) is currently connected. */
+    static boolean isHardwareKeyboardConnected()
+    {
+        for( int id : InputDevice.getDeviceIds() )
+        {
+            InputDevice device = InputDevice.getDevice( id );
+            if( device != null
+                    && ( device.getSources() & InputDevice.SOURCE_KEYBOARD ) == InputDevice.SOURCE_KEYBOARD )
+                return true;
+        }
+        return false;
+    }
+
+    /** True when a hardware gamepad or joystick is currently connected. */
+    static boolean isHardwareGamepadConnected()
+    {
+        for( int id : InputDevice.getDeviceIds() )
+        {
+            InputDevice device = InputDevice.getDevice( id );
+            if( device != null
+                    && ( device.getSources()
+                            & ( InputDevice.SOURCE_GAMEPAD | InputDevice.SOURCE_JOYSTICK ) ) != 0 )
+                return true;
+        }
+        return false;
+    }
+
+    /** The built-in Keyboard profile from controller.cfg, or null if it is missing. */
+    private ControllerProfile getBuiltinKeyboardProfile()
+    {
+        if( mAppData == null )
+            return null;
+        ConfigFile builtin = mAppData.GetControllerProfilesConfig();
+        if( builtin == null || !builtin.keySet().contains( KEYBOARD_PROFILE_NAME ) )
+            return null;
+        return new ControllerProfile( true, builtin.get( KEYBOARD_PROFILE_NAME ) );
     }
 
     private void hideSystemBars()
