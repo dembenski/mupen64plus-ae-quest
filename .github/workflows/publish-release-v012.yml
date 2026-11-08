@@ -34,7 +34,7 @@ jobs:
         run: |
           APK=$(find artifact -name '*.apk' | head -n 1)
           test -n "$APK"
-          cp "$APK"./Mupen64PlusAE-release.apk
+          cp "$APK" ./Mupen64PlusAE-release.apk
           ls -lh Mupen64PlusAE-release.apk
       - name: Create and publish release
         uses: softprops/action-gh-release@v2
