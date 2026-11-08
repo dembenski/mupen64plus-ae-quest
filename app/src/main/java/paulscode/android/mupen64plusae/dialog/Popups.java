@@ -43,6 +43,10 @@ public class Popups extends DialogFragment
     private static final String STATE_HARDWARE_INFO_POPUP = "STATE_HARDWARE_INFO_POPUP";
     private static final String STATE_SHOW_APP_VERSION_POPUP = "STATE_SHOW_APP_VERSION_POPUP";
     private static final String STATE_FAQ_POPUP = "STATE_FAQ_POPUP";
+    private static final String STATE_HAND_TRACKING_LEFT_POPUP = "STATE_HAND_TRACKING_LEFT_POPUP";
+    private static final String STATE_HAND_TRACKING_RIGHT_POPUP = "STATE_HAND_TRACKING_RIGHT_POPUP";
+    private static final String STATE_HAND_TRACKING_START_POPUP = "STATE_HAND_TRACKING_START_POPUP";
+    private static final String STATE_HAND_TRACKING_TIPS_POPUP = "STATE_HAND_TRACKING_TIPS_POPUP";
 
     public static Popups newInstance(Context context, String title)
     {
@@ -61,6 +65,22 @@ public class Popups extends DialogFragment
             case STATE_FAQ_POPUP:
                 args.putString(STATE_TITLE, String.valueOf(context.getText( R.string.menuItem_faq )));
                 args.putString(STATE_MESSAGE, frag.faq(context));
+                break;
+            case STATE_HAND_TRACKING_LEFT_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_hand_left ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_hand_left_text ));
+                break;
+            case STATE_HAND_TRACKING_RIGHT_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_hand_right ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_hand_right_text ));
+                break;
+            case STATE_HAND_TRACKING_START_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_hand_start ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_hand_start_text ));
+                break;
+            case STATE_HAND_TRACKING_TIPS_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_hand_tips ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_hand_tips_text ));
                 break;
             default:
                 break;
