@@ -1197,6 +1197,8 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
         if (!enabled) {
             QuestXr.setPassthrough(false);
         }
+        // AR mode is a floating screen, never fullscreen: passthrough wins over immersive
+        QuestXr.setImmersiveGame(mXrPassthrough? false: mGamePrefs.stereo3dImmersive);
         getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putBoolean(XR_PREF_PASSTHROUGH, mXrPassthrough).apply();
         loadXrScreen();
         updateXrQuads();
