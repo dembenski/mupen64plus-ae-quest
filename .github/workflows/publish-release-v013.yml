@@ -22,7 +22,7 @@ jobs:
           GH_REPO: dembenski/mupen64plus-ae-quest
         run: |
           gh api repos/dembenski/mupen64plus-ae-quest/actions/runs/42514922000/artifacts --jq '.artifacts[] | "\(.id) \(.name) expired=\(.expired)"'
-          ARTIFACT_ID=$(gh api repos/dembenski/mupen64plus-ae-quest/actions/runs/42514922000/artifacts --jq '.artifacts[] | select(.name=="mupen64plus-ae-master-d188e85407b65084abd1c853ad70524cea377c86") | .id')
+          ARTIFACT_ID=$(gh api repos/dembenski/mupen64plus-ae-quest/actions/runs/42514922000/artifacts --jq '.artifacts[] | select(.name=="mupen64plus-ae-master-d188e85") | .id')
           test -n "$ARTIFACT_ID"
           echo "Artifact ID: $ARTIFACT_ID"
           gh api repos/dembenski/mupen64plus-ae-quest/actions/artifacts/${ARTIFACT_ID}/zip > artifact.zip
