@@ -69,6 +69,9 @@ public class QuestTouchController extends AbstractController implements QuestXr.
     private final SessionListener mSessionListener;
     private final Handler mMainHandler = new Handler(Looper.getMainLooper());
     private volatile boolean mMenuOpen = false;
+    // True while the keyboard owned player 1 on the previous XR frame, so the
+    // first frame after it lets go can re-assert the hands' full state.
+    private boolean mWasKeyboardActive = false;
     // Quad the ray currently hits, so a click on the dock does not also press R in the game
     private volatile int mPointerQuad = -1;
     private boolean mPointerPressed = false;
@@ -185,6 +188,26 @@ public class QuestTouchController extends AbstractController implements QuestXr.
         b[DPD_U] = dpadHeld && up;
         b[DPD_D] = dpadHeld && down;
 
+        // While a keyboard key is held, the keyboard owns player 1: the
+        // hands' palm stick and pinches would fight it (hands resting on the
+        // keyboard still move the palm stick), so the game input is skipped.
+        // Menu input above is untouched — the VR menu stays navigable by hand.
+        if (AbstractController.isKeyboardActive()) {
+            mWasKeyboardActive = true;
+            reportState();
+            return;
+        }
+
+        // The keyboard just let go: re-assert this controller's full derived
+        // state, so a stick the hands held the whole time is not left at the
+        // keyboard's centered value until the hands move again.
+        if (mWasKeyboardActive) {
+            mWasKeyboardActive = false;
+            Arrays.fill(mTouchButtons, false);
+            mTouchAxisX = Float.NaN;
+            mTouchAxisY = Float.NaN;
+        }
+
         applyTouchState(b, applyDeadzone(leftX), applyDeadzone(leftY));
         reportState();
     }
@@ -251,6 +274,9 @@ public class QuestTouchController extends AbstractController implements QuestXr.
                 mLastButtons = 0;
                 mPointerQuad = -1;
                 mPointerPressed = false;
+                // A key held across a focus loss would otherwise suppress the
+                // hands forever (its key-up never arrives).
+                AbstractController.clearKeyboardInput();
                 releaseAll();
             }
             post(() -> mSessionListener.onXrFocusChanged(focused));
