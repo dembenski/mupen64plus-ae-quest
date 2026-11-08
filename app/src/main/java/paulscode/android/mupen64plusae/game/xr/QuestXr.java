@@ -75,88 +75,211 @@ public class QuestXr
         void onXrControllerMoved(float x, float y, float z, float yaw);
 
         /**
-        * A controller is aiming at a pointable quad. u and v are 0..1 from its top left corner;
-        * quad is -1 with u and v at -1 when nothing is hit.
-        */
+         * A controller is aiming at a pointable quad. u and v are 0..1 from its top left corner;
+         * quad is -1 with u and v at -1 when nothing is hit.
+         */
         void onXrPointer(int quad, float u, float v, boolean pressed);
     }
 
     private static boolean sLibraryLoaded = false;
+    private static final SurfaceTexture[] sTextures = new SurfaceTexture[QUAD_COUNT];
+    private static final Surface[] sSurfaces = new Surface[QUAD_COUNT];
 
-    static
+    public static boolean isQuestDevice()
     {
-        try {
-            System.loadLibrary("questxr");
-            sLibraryLoaded = true;
-        } catch (UnsatisfiedLinkError e) {
-            Log.e(TAG, "Failed to load native library", e);
-        }
+        return "Oculus".equalsIgnoreCase(Build.MANUFACTURER) || "Meta".equalsIgnoreCase(Build.MANUFACTURER);
     }
 
-    public static boolean isLibraryLoaded()
+    private static boolean loadLibrary()
     {
+        if (!sLibraryLoaded) {
+            try {
+                System.loadLibrary("questxr");
+                sLibraryLoaded = true;
+            } catch (UnsatisfiedLinkError e) {
+                Log.e(TAG, "Unable to load questxr", e);
+            }
+        }
         return sLibraryLoaded;
     }
 
-    public static boolean isPassthroughSupported()
+    /**
+     * Create the XR session with game, menu, controller and dock quads of the given pixel sizes.
+     * @return False if XR is unavailable
+     */
+    public static boolean create(Activity activity, Listener listener, int gameWidth, int gameHeight,
+                                 int menuWidth, int menuHeight, int controllerWidth, int controllerHeight,
+                                 int dockWidth, int dockHeight)
     {
-        return sLibraryLoaded && nativeIsPassthroughSupported();
+        if (!isQuestDevice() || !loadLibrary()) {
+            return false;
+        }
+        if (!nativeCreate(activity, listener, gameWidth, gameHeight, menuWidth, menuHeight,
+                controllerWidth, controllerHeight, dockWidth, dockHeight)) {
+            return false;
+        }
+
+        final int[][] sizes = {{gameWidth, gameHeight}, {menuWidth, menuHeight},
+                {controllerWidth, controllerHeight}, {dockWidth, dockHeight}};
+        for (int quad = 0; quad < QUAD_COUNT; ++quad) {
+            // Created detached; the native frame thread attaches it to its own GL context
+            sTextures[quad] = new SurfaceTexture(false);
+            sTextures[quad].setDefaultBufferSize(sizes[quad][0], sizes[quad][1]);
+            nativeSetSourceTexture(quad, sTextures[quad]);
+            sSurfaces[quad] = new Surface(sTextures[quad]);
+        }
+        return true;
     }
 
-    /** Fill in the given Surface with the quad's contents from Java drawing code. */
-    public static void create(Activity activity, Listener listener,
-                              int gameWidth, int gameHeight, int menuWidth, int menuHeight,
-                              int controllerWidth, int controllerHeight, int dockWidth, int dockHeight)
+    /** The surface to draw the given quad's content into. */
+    public static Surface getSurface(int quad)
     {
-        if (sLibraryLoaded) {
-            nativeCreate(activity, listener, gameWidth, gameHeight, menuWidth, menuHeight,
-                    controllerWidth, controllerHeight, dockWidth, dockHeight);
+        return sSurfaces[quad];
+    }
+
+    /**
+     * Load the 3D controller mesh and texture from assets. Must be called before {@link #start()};
+     * without it the 3D controller falls back to a simple procedural model.
+     */
+    public static void loadControllerModel(AssetManager assets)
+    {
+        if (!sLibraryLoaded) {
+            return;
+        }
+        try (InputStream meshStream = assets.open("quest/n64_controller.bin");
+             InputStream textureStream = assets.open("quest/n64_controller.png")) {
+            final ByteArrayOutputStream bytes = new ByteArrayOutputStream();
+            final byte[] chunk = new byte[64 * 1024];
+            int read;
+            while ((read = meshStream.read(chunk)) > 0) {
+                bytes.write(chunk, 0, read);
+            }
+            final ByteBuffer mesh = ByteBuffer.allocateDirect(bytes.size());
+            mesh.put(bytes.toByteArray());
+
+            final BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inPreferredConfig = Bitmap.Config.ARGB_8888;
+            options.inPremultiplied = false;
+            final Bitmap texture = BitmapFactory.decodeStream(textureStream, null, options);
+            if (texture == null || !nativeSetControllerModel(mesh, texture)) {
+                Log.w(TAG, "Unable to use the controller model");
+            }
+            if (texture != null) {
+                texture.recycle();
+            }
+        } catch (IOException e) {
+            Log.w(TAG, "Controller model not found", e);
         }
     }
 
-    /** Set the game's frame rate: the runtime's display rate or half of it. */
-    public static void setDisplayRefreshRate(float rate)
-    {
-        if (sLibraryLoaded) {
-            nativeSetDisplayRefreshRate(rate);
-        }
-    }
-
+    /** Start the frame loop thread. */
     public static void start()
     {
-        if (sLibraryLoaded) {
-            nativeStart();
-        }
+        nativeStart();
     }
 
-    public static void setDisplayRate(float rate)
+    /** Stop the frame loop and destroy the session. Safe to call if never created. */
+    public static void destroy()
     {
         if (sLibraryLoaded) {
-            nativeSetDisplayRate(rate);
+            nativeDestroy();
+        }
+        for (int quad = 0; quad < QUAD_COUNT; ++quad) {
+            if (sSurfaces[quad] != null) {
+                sSurfaces[quad].release();
+                sSurfaces[quad] = null;
+            }
+            if (sTextures[quad] != null) {
+                sTextures[quad].release();
+                sTextures[quad] = null;
+            }
         }
     }
 
-    public static void requestExit()
+    /**
+     * Place a quad. The height follows the pixel aspect ratio.
+     * @param attach One of the ATTACH_ constants, defines what x/y/z and yaw are relative to
+     * @param yaw Rotation around the vertical axis in radians, 0 faces the initial head position
+     * @param width Width in meters
+     * @param blendAlpha Whether the quad's alpha channel is used for blending
+     * @param cornerRadius Rounds the corners by this many meters, needs blendAlpha
+     * @param opaqueSource Treat the drawn content as opaque, e.g. the emulator output
+     */
+    public static void setQuad(int quad, boolean visible, int attach, float x, float y, float z, float yaw,
+                               float width, boolean blendAlpha, float cornerRadius, boolean opaqueSource)
     {
         if (sLibraryLoaded) {
-            nativeRequestExit();
+            nativeSetQuad(quad, visible, attach, x, y, z, yaw, width, blendAlpha, cornerRadius, opaqueSource);
         }
     }
 
-    public static void setImmersiveGame(boolean immersive)
+    /** While enabled, either thumbstick resizes the game screen without grabbing it. */
+    public static void setStickResizeEnabled(boolean enabled)
     {
         if (sLibraryLoaded) {
-            nativeSetImmersiveGame(immersive);
+            nativeSetStickResizeEnabled(enabled);
         }
     }
 
-    public static void setHandTrackingEnabled(boolean enabled)
+    /** While enabled, aiming a controller at the menu quad is reported through onXrPointer. */
+    public static void setPointerEnabled(boolean enabled)
     {
         if (sLibraryLoaded) {
-            nativeSetHandTrackingEnabled(enabled);
+            nativeSetPointerEnabled(enabled);
         }
     }
 
+    /**
+     * How much of a rendered frame the headset shows, across and down, as two factors between 0 and
+     * 1. A frame is rendered wider than the view on purpose.
+     */
+    public static float[] getImmersiveVisibleFraction()
+    {
+        if (sLibraryLoaded) {
+            final float[] fraction = nativeGetImmersiveVisibleFraction();
+            if (fraction != null && fraction.length == 2) {
+                return fraction;
+            }
+        }
+        return new float[] {1.0f, 1.0f};
+    }
+
+    /** Immersive mode: the emulator renders for the head pose, the picture fills the view. */
+    public static void setImmersiveGame(boolean enabled)
+    {
+        if (sLibraryLoaded) {
+            nativeSetImmersiveGame(enabled);
+        }
+    }
+
+    /** The emulator draws both eyes into the game quad side by side; each eye gets its half. */
+    public static void setStereoGame(boolean enabled)
+    {
+        if (sLibraryLoaded) {
+            nativeSetStereoGame(enabled);
+        }
+    }
+
+    /** While enabled, holding a grip moves the game screen with that controller. */
+    public static void setGrabEnabled(boolean enabled)
+    {
+        if (sLibraryLoaded) {
+            nativeSetGrabEnabled(enabled);
+        }
+    }
+
+    /**
+     * State shown by the 3D controller. Safe to call from any thread.
+     * @param buttons Bit i set when N64 button i (AbstractController indices) is pressed
+     */
+    public static void setN64State(int buttons, float axisX, float axisY)
+    {
+        if (sLibraryLoaded) {
+            nativeSetN64State(buttons, axisX, axisY);
+        }
+    }
+
+    /** Show the 3D N64 controller between the hands. */
     public static void setController3dVisible(boolean visible)
     {
         if (sLibraryLoaded) {
@@ -220,128 +343,41 @@ public class QuestXr
         }
     }
 
-    public static void setPassthrough(boolean enabled)
+    /** @return False if passthrough is not supported */
+    public static boolean setPassthrough(boolean enabled)
+    {
+        return sLibraryLoaded && nativeSetPassthrough(enabled);
+    }
+
+    /** Enable or disable hand-tracking input. Controllers always win while they are in use. */
+    public static void setHandTrackingEnabled(boolean enabled)
     {
         if (sLibraryLoaded) {
-            nativeSetPassthrough(enabled);
+            nativeSetHandTrackingEnabled(enabled);
         }
     }
 
-    public static void setGameQuad(float x, float y, float z, float yaw, float width)
+    /** @return True if the runtime supports hand tracking and it was enabled for this session */
+    public static boolean isHandTrackingAvailable()
     {
-        if (sLibraryLoaded) {
-            nativeSetGameQuad(x, y, z, yaw, width);
-        }
+        return sLibraryLoaded && nativeIsHandTrackingAvailable();
     }
-
-    public static void setMenuQuad(float x, float y, float z, float yaw, float width)
-    {
-        if (sLibraryLoaded) {
-            nativeSetMenuQuad(x, y, z, yaw, width);
-        }
-    }
-
-    public static void setControllerQuad(float x, float y, float z, float yaw, float width)
-    {
-        if (sLibraryLoaded) {
-            nativeSetControllerQuad(x, y, z, yaw, width);
-        }
-    }
-
-    public static void setDockQuad(float x, float y, float z, float yaw, float width)
-    {
-        if (sLibraryLoaded) {
-            nativeSetDockQuad(x, y, z, yaw, width);
-        }
-    }
-
-    public static void setPointerQuad(int quad, int attachMode, float x, float y, float z, float yaw,
-                                      float width, float height)
-    {
-        if (sLibraryLoaded) {
-            nativeSetPointerQuad(quad, attachMode, x, y, z, yaw, width, height);
-        }
-    }
-
-    /** The game quad, the one everything else is placed relative to. */
-    public static void setN64State(int buttons, float axisX, float axisY)
-    {
-        if (sLibraryLoaded) {
-            nativeSetN64State(buttons, axisX, axisY);
-        }
-    }
-
-    public static void setGrabEnabled(boolean enabled)
-    {
-        if (sLibraryLoaded) {
-            nativeSetGrabEnabled(enabled);
-        }
-    }
-
-    public static void setStickResizeEnabled(boolean enabled)
-    {
-        if (sLibraryLoaded) {
-            nativeSetStickResizeEnabled(enabled);
-        }
-    }
-
-    public static void loadControllerModel(AssetManager assets)
-    {
-        if (!sLibraryLoaded) {
-            return;
-        }
-        try (InputStream stream = assets.open("quest/n64_controller.bin")) {
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            byte[] chunk = new byte[4096];
-            int read;
-            while ((read = stream.read(chunk)) != -1) {
-                buffer.write(chunk, 0, read);
-            }
-            final Bitmap texture = loadControllerTexture(assets);
-            if (texture == null) {
-                Log.e(TAG, "Missing controller texture");
-                return;
-            }
-            if (!nativeSetControllerModel(ByteBuffer.wrap(buffer.toByteArray()), texture)) {
-                Log.e(TAG, "Failed to load controller model");
-            }
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to load controller model", e);
-        }
-    }
-
-    private static Bitmap loadControllerTexture(AssetManager assets)
-    {
-        try (InputStream stream = assets.open("quest/n64_controller.png")) {
-            return BitmapFactory.decodeStream(stream);
-        } catch (IOException e) {
-            Log.e(TAG, "Failed to load controller texture", e);
-            return null;
-        }
-    }
-
-    private static native boolean nativeIsPassthroughSupported();
 
     private static native boolean nativeCreate(Activity activity, Listener listener, int gameWidth, int gameHeight,
                                                int menuWidth, int menuHeight, int controllerWidth,
                                                int controllerHeight, int dockWidth, int dockHeight);
-
-    private static native void nativeSetDisplayRefreshRate(float rate);
-
-    private static native void nativeStart();
-
-    private static native void nativeSetDisplayRate(float rate);
-
-    private static native void nativeRequestExit();
-
-    private static native void nativeSetImmersiveGame(boolean immersive);
-
-    private static native void nativeSetHandTrackingEnabled(boolean enabled);
-
-    private static native void nativeSetControllerModel(ByteBuffer mesh, Bitmap texture);
-
+    private static native void nativeSetSourceTexture(int quad, SurfaceTexture texture);
+    private static native void nativeSetQuad(int quad, boolean visible, int attach, float x, float y, float z,
+                                             float yaw, float width, boolean blendAlpha, float cornerRadius,
+                                             boolean opaqueSource);
+    private static native void nativeSetStickResizeEnabled(boolean enabled);
+    private static native void nativeSetGrabEnabled(boolean enabled);
+    private static native void nativeSetPointerEnabled(boolean enabled);
+    private static native void nativeSetStereoGame(boolean enabled);
+    private static native void nativeSetImmersiveGame(boolean enabled);
+    private static native float[] nativeGetImmersiveVisibleFraction();
+    private static native boolean nativeSetControllerModel(ByteBuffer mesh, Bitmap texture);
     private static native void nativeSetN64State(int buttons, float axisX, float axisY);
-
     private static native void nativeSetController3dVisible(boolean visible);
     private static native void nativeSetControllerVirtual(boolean virtualController);
     private static native void nativeSetVirtualControllerPose(float x, float y, float z, float yaw);
@@ -349,21 +385,9 @@ public class QuestXr
     private static native void nativeSetControllerGrabEnabled(boolean enabled);
     private static native void nativeSetControllerPlacing(boolean placing);
     private static native void nativeRecenterScreen(float distance, float width);
-
     private static native boolean nativeSetPassthrough(boolean enabled);
-
-    private static native void nativeSetGameQuad(float x, float y, float z, float yaw, float width);
-
-    private static native void nativeSetMenuQuad(float x, float y, float z, float yaw, float width);
-
-    private static native void nativeSetControllerQuad(float x, float y, float z, float yaw, float width);
-
-    private static native void nativeSetDockQuad(float x, float y, float z, float yaw, float width);
-
-    private static native void nativeSetPointerQuad(int quad, int attachMode, float x, float y, float z, float yaw,
-                                                    float width, float height);
-
-    private static native void nativeSetGrabEnabled(boolean enabled);
-
-    private static native void nativeSetStickResizeEnabled(boolean enabled);
+    private static native void nativeSetHandTrackingEnabled(boolean enabled);
+    private static native boolean nativeIsHandTrackingAvailable();
+    private static native void nativeStart();
+    private static native void nativeDestroy();
 }
