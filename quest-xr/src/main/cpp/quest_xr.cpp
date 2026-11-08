@@ -997,12 +997,12 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
         {
             std::lock_guard<std::mutex> lock(xr.quadMutex);
             QuadSettings& screen = xr.quads[QUAD_GAME].settings;
-            if (!enabled || xr.input.grips[hand] < 0.5f || hands[hand] == nullptr) {
+            if (!enabled || xr.input.grips[hand] < 0.5f || grabHands[hand] == nullptr) {
                 finished = true;
                 released = screen;
                 xr.grabHand = -1;
             } else {
-                screen.position = add(hands[hand]->position, xr.grabOffset);
+                screen.position = add(grabHands[hand]->position, xr.grabOffset);
                 if (head != nullptr) {
                     screen.yaw = yawTowards(screen.position, head->position);
                 }
