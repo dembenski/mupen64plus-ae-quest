@@ -7,7 +7,7 @@ android {
         minSdkVersion 28
         targetSdkVersion 36
         // Quest fork, based on Mupen64Plus-AE 3.0.249
-        versionCode = 253
-        versionName = "1.2.1 (Quest)"
+        versionCode = 254
+        versionName = "1.2.2 (Quest)"
     }
 }
