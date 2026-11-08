@@ -1413,6 +1413,22 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 R.string.quest_about_modelUri)));
     }
 
+    private void buildQuestHandTracking(List<QuestEntry> entries)
+    {
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_hand_left),
+                getString(R.string.quest_hand_leftSummary), () -> Popups.newInstance(this, STATE_HAND_TRACKING_LEFT_POPUP)
+                .show(getSupportFragmentManager(), STATE_HAND_TRACKING_LEFT_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_hand_right),
+                getString(R.string.quest_hand_rightSummary), () -> Popups.newInstance(this, STATE_HAND_TRACKING_RIGHT_POPUP)
+                .show(getSupportFragmentManager(), STATE_HAND_TRACKING_RIGHT_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_play, getString(R.string.quest_hand_start),
+                getString(R.string.quest_hand_startSummary), () -> Popups.newInstance(this, STATE_HAND_TRACKING_START_POPUP)
+                .show(getSupportFragmentManager(), STATE_HAND_TRACKING_START_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_help, getString(R.string.quest_hand_tips),
+                getString(R.string.quest_hand_tipsSummary), () -> Popups.newInstance(this, STATE_HAND_TRACKING_TIPS_POPUP)
+                .show(getSupportFragmentManager(), STATE_HAND_TRACKING_TIPS_POPUP)));
+    }
+
     private void updateQuestLibraryCount(List<GalleryItem> shownItems)
     {
         final TextView subtitle = findViewById(R.id.questSubtitle);
