@@ -36,6 +36,7 @@ import android.provider.Settings;
 import android.text.TextUtils;
 import android.text.InputType;
 import android.util.Log;
+import android.view.InputDevice;
 import android.view.PointerIcon;
 import android.view.View;
 import android.widget.LinearLayout;
@@ -122,6 +123,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
     private static final String STATE_AR_TIPS_POPUP = "STATE_AR_TIPS_POPUP";
     private static final String STATE_VIRTUAL_PLACE_POPUP = "STATE_VIRTUAL_PLACE_POPUP";
     private static final String STATE_VIRTUAL_TIPS_POPUP = "STATE_VIRTUAL_TIPS_POPUP";
+    private static final String STATE_KEYBOARD_MAP_POPUP = "STATE_KEYBOARD_MAP_POPUP";
+    private static final String STATE_KEYBOARD_TIPS_POPUP = "STATE_KEYBOARD_TIPS_POPUP";
     public static final String KEY_IS_LEANBACK = "KEY_IS_LEANBACK";
     public static final String KEY_IS_SHORTCUT = "KEY_IS_SHORTCUT";
 
@@ -1140,7 +1143,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         mLaunchGame.launch(intent);
     }
 
-    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT, HAND_TRACKING, AR_MODE, VIRTUAL_CONTROLLER }
+    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT, HAND_TRACKING, AR_MODE, VIRTUAL_CONTROLLER, KEYBOARD }
 
     private QuestSection mQuestSection = QuestSection.LIBRARY;
 
@@ -1180,6 +1183,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 v -> showQuestSection(QuestSection.AR_MODE));
         setupQuestRailItem(R.id.railVirtualController, R.drawable.ic_gamepad, R.string.quest_virtualController,
                 v -> showQuestSection(QuestSection.VIRTUAL_CONTROLLER));
+        setupQuestRailItem(R.id.railKeyboard, R.drawable.ic_gamepad, R.string.quest_keyboard,
+                v -> showQuestSection(QuestSection.KEYBOARD));
         setupQuestRailItem(R.id.railAbout, R.drawable.ic_about, R.string.menuItem_about,
                 v -> showQuestSection(QuestSection.ABOUT));
         updateQuestRailSelection();
@@ -1203,6 +1208,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         findViewById(R.id.railHandTracking).setSelected(mQuestSection == QuestSection.HAND_TRACKING);
         findViewById(R.id.railArMode).setSelected(mQuestSection == QuestSection.AR_MODE);
         findViewById(R.id.railVirtualController).setSelected(mQuestSection == QuestSection.VIRTUAL_CONTROLLER);
+        findViewById(R.id.railKeyboard).setSelected(mQuestSection == QuestSection.KEYBOARD);
         findViewById(R.id.railAbout).setSelected(mQuestSection == QuestSection.ABOUT);
     }
 
@@ -1276,6 +1282,11 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 title.setText(R.string.quest_virtualController);
                 subtitle.setText(R.string.quest_virtualController_subtitle);
                 buildQuestVirtualController(entries);
+                break;
+            case KEYBOARD:
+                title.setText(R.string.quest_keyboard);
+                subtitle.setText(R.string.quest_keyboard_subtitle);
+                buildQuestKeyboard(entries);
                 break;
         case ABOUT:
                 title.setText(R.string.menuItem_about);
@@ -1520,6 +1531,52 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         entries.add(new QuestEntry(R.drawable.ic_help, getString(R.string.quest_virtual_tips),
                 getString(R.string.quest_virtual_tipsSummary), () -> Popups.newInstance(this, STATE_VIRTUAL_TIPS_POPUP)
                 .show(getSupportFragmentManager(), STATE_VIRTUAL_TIPS_POPUP)));
+    }
+
+    /** Built-in keyboard map; the name must match GameActivity's XR_PREFS. */
+    private static final String XR_PREF_KEYBOARD = "keyboard_enabled";
+
+    private boolean isKeyboardEnabled()
+    {
+        return getSharedPreferences(XR_PREFS, MODE_PRIVATE).getBoolean(XR_PREF_KEYBOARD, true);
+    }
+
+    private void setKeyboardEnabled(boolean enabled)
+    {
+        getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putBoolean(XR_PREF_KEYBOARD, enabled).apply();
+    }
+
+    /** True when a hardware keyboard (Bluetooth or USB) is currently connected. */
+    private static boolean isHardwareKeyboardConnected()
+    {
+        for (int id : InputDevice.getDeviceIds()) {
+            InputDevice device = InputDevice.getDevice(id);
+            if (device != null
+                    && (device.getSources() & InputDevice.SOURCE_KEYBOARD) == InputDevice.SOURCE_KEYBOARD) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void buildQuestKeyboard(List<QuestEntry> entries)
+    {
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_keyboard),
+                getString(isHardwareKeyboardConnected() ? R.string.quest_keyboard_connectedSummary
+                        : R.string.quest_keyboard_notFoundSummary),
+                () -> Popups.newInstance(this, STATE_KEYBOARD_MAP_POPUP)
+                        .show(getSupportFragmentManager(), STATE_KEYBOARD_MAP_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_keyboard_map),
+                getString(isKeyboardEnabled() ? R.string.quest_keyboard_onSummary : R.string.quest_keyboard_offSummary),
+                () -> {
+                    // Takes effect the next game started: the player 1 map is
+                    // chosen once, at game start, in GameActivity.
+                    setKeyboardEnabled(!isKeyboardEnabled());
+                    showQuestSection(QuestSection.KEYBOARD);
+                }));
+        entries.add(new QuestEntry(R.drawable.ic_help, getString(R.string.quest_keyboard_tips),
+                getString(R.string.quest_keyboard_tipsSummary), () -> Popups.newInstance(this, STATE_KEYBOARD_TIPS_POPUP)
+                        .show(getSupportFragmentManager(), STATE_KEYBOARD_TIPS_POPUP)));
     }
 
     private void updateQuestLibraryCount(List<GalleryItem> shownItems)
