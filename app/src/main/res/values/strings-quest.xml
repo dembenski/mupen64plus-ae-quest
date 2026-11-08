@@ -9,7 +9,7 @@
     <string name="questMenu_controller">Controller display:  ◀ %1$s ▶</string>
     <string name="questMenu_controllerHands">3D N64 in hands</string>
     <string name="questMenu_controllerScreen">2D N64 below screen</string>
-        <string name="questMenu_controllerVirtual">3D N64 you can hold</string>
+    <string name="questMenu_controllerVirtual">3D N64 you can hold</string>
     <string name="questMenu_controllerOff">Off</string>
     <string name="questMenu_speed">Speed: %1$d %%</string>
     <string name="questMenu_frameLimiter">Frame limiter: %1$s</string>
@@ -87,7 +87,7 @@
     <string name="quest_about_model">3D controller model</string>
     <string name="quest_about_modelSummary">\"N64 Controller\" by Marshle, CC BY 4.0</string>
     <string name="quest_about_modelUri" translatable="false">https://sketchfab.com/3d-models/n64-controller-8fb694b8c4bf4bbb8bc66f38503f4ffb</strin
-        <string name="quest_handTracking">Hand tracking</string>
+    <string name="quest_handTracking">Hand tracking</string>
     <string name="quest_handTracking_subtitle">Play without a controller</string>
     <string name="quest_hand_left">Left hand</string>
     <string name="quest_hand_leftSummary">Stick, L, Z and R</string>
