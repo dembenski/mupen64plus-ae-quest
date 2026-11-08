@@ -98,6 +98,16 @@ public class PeripheralController extends AbstractController implements
     /** The negative analogy-y strength, between 0 and 1, inclusive. */
     private float mStrengthYneg;
 
+    /** This controller's own last-written button states: apply() only touches
+     * the shared per-player state when its own derived value changed, so a
+     * keyboard key release never stomps a button the hands are holding (and
+     * vice versa). Mirrors QuestTouchController's mTouchButtons. */
+    private final boolean[] mPeripheralButtons = new boolean[NUM_N64_BUTTONS];
+
+    /** This controller's own last-written stick deflection (same delta guard). */
+    private float mPeripheralAxisX = 0;
+    private float mPeripheralAxisY = 0;
+
     /** Called for menu and back keys */
     private final View.OnKeyListener mKeyListener;
 
@@ -190,7 +200,14 @@ public class PeripheralController extends AbstractController implements
             }
             
             // Apply user changes to the controller state
+            boolean mapped = mEntryMap.get( inputCode ) != null;
             apply( inputCode, strength, false, repeatCount, device, source );
+
+            // A mapped keyboard key held down means the keyboard owns this
+            // player until it is released (see AbstractController). Unmapped
+            // keys drive nothing and never count as the keyboard being in use.
+            if( mapped && ( source & InputDevice.SOURCE_KEYBOARD ) == InputDevice.SOURCE_KEYBOARD )
+                noteKeyboardInput( inputCode, strength > 0 );
             
             // Notify the core that controller state has changed
             notifyChanged(mIsAnalogDigitalInput);
@@ -247,7 +264,16 @@ public class PeripheralController extends AbstractController implements
         {
             if( n64Index < NUM_N64_BUTTONS )
             {
-                mState.buttons[n64Index] = strength > AbstractProvider.STRENGTH_THRESHOLD;
+                // Delta-guarded like QuestTouchController: only touch the
+                // shared state when this controller's own derived value
+                // changed, so releasing a keyboard key never stomps a button
+                // the hands are holding (and vice versa).
+                boolean down = strength > AbstractProvider.STRENGTH_THRESHOLD;
+                if( down != mPeripheralButtons[n64Index] )
+                {
+                    mPeripheralButtons[n64Index] = down;
+                    mState.buttons[n64Index] = down;
+                }
                 return;
             }
             
@@ -299,8 +325,20 @@ public class PeripheralController extends AbstractController implements
                 rawY = 0;
             }
 
-            mState.axisFractionX = rawX;
-            mState.axisFractionY = rawY;
+            // Delta-guarded, same as the buttons: the hands own the stick
+            // while no keyboard axis key is held, and the keyboard owns it
+            // while one is — neither side rewrites the other's deflection
+            // on a frame where its own value did not change.
+            if( rawX != mPeripheralAxisX )
+            {
+                mPeripheralAxisX = rawX;
+                mState.axisFractionX = rawX;
+            }
+            if( rawY != mPeripheralAxisY )
+            {
+                mPeripheralAxisY = rawY;
+                mState.axisFractionY = rawY;
+            }
 
         } else if(mPlayerNumber == 1) {
             // Button must be held for some inputs to prevent accidental presses
