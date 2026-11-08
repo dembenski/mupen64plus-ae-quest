@@ -48,6 +48,7 @@
             <include android:id="@+id/railTools" layout="@layout/quest_rail_item" />
             <include android:id="@+id/railHandTracking" layout="@layout/quest_rail_item" />
             <include android:id="@+id/railArMode" layout="@layout/quest_rail_item" />
+            <include android:id="@+id/railVirtualController" layout="@layout/quest_rail_item" />
             <include android:id="@+id/railAbout" layout="@layout/quest_rail_item" />
         </LinearLayout>
 
