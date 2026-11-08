@@ -58,6 +58,9 @@ public class QuestVrMenu
         /** Hide the menu and let the player move and resize the screen with the controllers. */
         void onVrMenuAdjustScreen();
 
+        /** Hide the menu and let the player pick up and place the virtual controller by hand. */
+        void onVrMenuPlaceController();
+
         boolean isPassthroughSupported();
 
         boolean isPassthroughEnabled();
@@ -72,8 +75,8 @@ public class QuestVrMenu
 
     private enum Item
     {
-        RESUME, SAVE, LOAD, SLOT, ADJUST_SCREEN, RESET_SCREEN, PASSTHROUGH, CONTROLLER, SPEED, FRAME_LIMITER,
-        SCREENSHOT, RESET, EXIT
+        RESUME, SAVE, LOAD, SLOT, ADJUST_SCREEN, PLACE_CONTROLLER, RESET_SCREEN, PASSTHROUGH, CONTROLLER, HAND_MODE,
+        SPEED, FRAME_LIMITER, SCREENSHOT, RESET, EXIT
     }
 
     private final Surface mSurface;
@@ -146,18 +149,34 @@ public class QuestVrMenu
 
     public void open()
     {
-        mItems.clear();
-        for (Item item : Item.values()) {
-            if (item != Item.PASSTHROUGH || mHost.isPassthroughSupported()) {
-                mItems.add(item);
-            }
-        }
+        refreshItems();
         mSelected = 0;
         mHovered = -1;
         mPendingConfirm = null;
         mStatus = "";
         mOpen = true;
         draw();
+    }
+
+    /** Rebuild the item list after a mode change (e.g. Place controller appears in Virtual mode). */
+    private void refreshItems()
+    {
+        mItems.clear();
+        for (Item item : Item.values()) {
+            if (item == Item.PASSTHROUGH && !mHost.isPassthroughSupported()) {
+                continue;
+            }
+            if (item == Item.PLACE_CONTROLLER
+                    && mHost.getControllerMode() != QuestN64Overlay.MODE_VIRTUAL) {
+                continue;
+            }
+            mItems.add(item);
+        }
+        if (mSelected >= mItems.size()) {
+            mSelected = mItems.size() - 1;
+        }
+        mHovered = -1;
+        mPendingConfirm = null;
     }
 
     /** Close the menu and notify the host. */
@@ -237,8 +256,10 @@ public class QuestVrMenu
             case CONTROLLER:
                 mHost.setControllerMode((mHost.getControllerMode() + direction + QuestN64Overlay.MODE_COUNT)
                         % QuestN64Overlay.MODE_COUNT);
+                refreshItems();
                 draw();
                 break;
+            case HAND_MODE:
             case PASSTHROUGH:
             case SPEED:
             case FRAME_LIMITER:
@@ -274,6 +295,17 @@ public class QuestVrMenu
                 break;
             case CONTROLLER:
                 mHost.setControllerMode((mHost.getControllerMode() + 1) % QuestN64Overlay.MODE_COUNT);
+                refreshItems();
+                break;
+            case HAND_MODE:
+                // One tap flips straight between the two hand-tracking modes —
+                // hand gestures (the main mode) and the digital controller —
+                // without cycling through the screen and off display modes.
+                // From a display mode (screen / off) it goes to the controller,
+                // since the input there is already hand gestures.
+                mHost.setControllerMode(mHost.getControllerMode() == QuestN64Overlay.MODE_VIRTUAL
+                        ? QuestN64Overlay.MODE_HANDS : QuestN64Overlay.MODE_VIRTUAL);
+                refreshItems();
                 break;
             case SPEED:
                 mCoreFragment.toggleSpeed();
@@ -288,6 +320,10 @@ public class QuestVrMenu
             case ADJUST_SCREEN:
                 mOpen = false;
                 mHost.onVrMenuAdjustScreen();
+                return;
+            case PLACE_CONTROLLER:
+                mOpen = false;
+                mHost.onVrMenuPlaceController();
                 return;
             case RESET_SCREEN:
                 mHost.onVrMenuResetScreen();
@@ -336,9 +372,18 @@ public class QuestVrMenu
                 return mResources.getString(R.string.questMenu_controllerHands);
             case QuestN64Overlay.MODE_SCREEN:
                 return mResources.getString(R.string.questMenu_controllerScreen);
+            case QuestN64Overlay.MODE_VIRTUAL:
+                return mResources.getString(R.string.questMenu_controllerVirtual);
             default:
                 return mResources.getString(R.string.questMenu_controllerOff);
         }
+    }
+
+    /** The hand-tracking mode: the digital controller, or hand gestures in any other mode. */
+    private String handModeLabel(int mode)
+    {
+        return mResources.getString(mode == QuestN64Overlay.MODE_VIRTUAL
+                ? R.string.quest_handController : R.string.quest_handGestures);
     }
 
     private String label(Item item)
@@ -356,6 +401,8 @@ public class QuestVrMenu
                 return mResources.getString(R.string.questMenu_labelPassthrough);
             case CONTROLLER:
                 return mResources.getString(R.string.questMenu_labelController);
+            case HAND_MODE:
+                return mResources.getString(R.string.quest_virtual_handMode);
             case SPEED:
                 return mResources.getString(R.string.questMenu_labelSpeed);
             case FRAME_LIMITER:
@@ -364,6 +411,8 @@ public class QuestVrMenu
                 return mResources.getString(R.string.questMenu_screenshot);
             case ADJUST_SCREEN:
                 return mResources.getString(R.string.questMenu_adjustScreen);
+            case PLACE_CONTROLLER:
+                return mResources.getString(R.string.questMenu_placeController);
             case RESET_SCREEN:
                 return mResources.getString(R.string.questMenu_resetScreen);
             case RESET:
@@ -389,6 +438,8 @@ public class QuestVrMenu
                 return onOff(mHost.isPassthroughEnabled());
             case CONTROLLER:
                 return controllerModeLabel(mHost.getControllerMode());
+            case HAND_MODE:
+                return handModeLabel(mHost.getControllerMode());
             case SPEED:
                 return mCoreFragment.getCurrentSpeed() + " %";
             case FRAME_LIMITER:
@@ -449,7 +500,8 @@ public class QuestVrMenu
             }
 
             float footer = mHeight - PADDING;
-            if (mHost.getControllerMode() == QuestN64Overlay.MODE_HANDS) {
+            if (mHost.getControllerMode() == QuestN64Overlay.MODE_HANDS
+                    || mHost.getControllerMode() == QuestN64Overlay.MODE_VIRTUAL) {
                 canvas.drawText(ellipsize(mResources.getString(R.string.questMenu_modelCredits), mCreditsPaint,
                         mWidth - 2 * PADDING), PADDING, mHeight - 18, mCreditsPaint);
             }
@@ -483,6 +535,32 @@ public class QuestVrMenu
             canvas.drawText(mResources.getString(R.string.questAdjust_title).toUpperCase(),
                     PADDING, top + 80, mTitlePaint);
             canvas.drawText(ellipsize(mResources.getString(R.string.questAdjust_hint), mHintPaint,
+                    mWidth - 2 * PADDING), PADDING, top + 142, mHintPaint);
+        } finally {
+            mSurface.unlockCanvasAndPost(canvas);
+        }
+    }
+
+    /** Draws only a hint banner at the bottom of the menu surface, used while placing the controller. */
+    public void drawPlaceControllerHint()
+    {
+        if (mSurface == null || !mSurface.isValid()) {
+            return;
+        }
+        final Canvas canvas;
+        try {
+            canvas = mSurface.lockHardwareCanvas();
+        } catch (IllegalStateException | IllegalArgumentException e) {
+            Log.e(TAG, "Unable to lock menu surface", e);
+            return;
+        }
+        try {
+            canvas.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR);
+            final float top = mHeight - 210;
+            canvas.drawRoundRect(new RectF(0, top, mWidth, mHeight), 28, 28, mBackgroundPaint);
+            canvas.drawText(mResources.getString(R.string.questPlace_title).toUpperCase(),
+                    PADDING, top + 80, mTitlePaint);
+            canvas.drawText(ellipsize(mResources.getString(R.string.questPlace_hint), mHintPaint,
                     mWidth - 2 * PADDING), PADDING, top + 142, mHintPaint);
         } finally {
             mSurface.unlockCanvasAndPost(canvas);
