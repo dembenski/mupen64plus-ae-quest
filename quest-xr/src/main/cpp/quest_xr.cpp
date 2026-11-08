@@ -181,6 +181,7 @@ struct XrState {
     XrSpace aimSpaces[HAND_COUNT] = {XR_NULL_HANDLE, XR_NULL_HANDLE};
     XrSpace viewSpace = XR_NULL_HANDLE;
     jmethodID onScreenMoved = nullptr;
+    jmethodID onControllerMoved = nullptr;
     jmethodID onPointer = nullptr;
 
     // The game quad holds two eye views side by side, drawn by the emulator's stereo mode
@@ -216,8 +217,41 @@ struct XrState {
 
     InputState input;
 
+    // Raw grips: the unfiltered grip for each hand (Touch action + hand grip
+    // gesture), read by the grab logic. syncInput sets these before any
+    // virtual-controller filtering, so a grip that starts a hold is never
+    // hidden from the grab that needs it.
+    float rawGrips[HAND_COUNT] = {};
+
     // 3D N64 controller in the projection layer
     std::atomic<bool> controller3dVisible{false};
+    // The placed virtual controller: a saved world pose, moved by hand in placement
+    // mode. Position and yaw are guarded by quadMutex, like the quads.
+    std::atomic<bool> controllerVirtual{false};
+    std::atomic<bool> controllerGrabEnabled{false};
+    // True while the user is placing the controller (VR menu -> Place controller).
+    // The finger-press path is off then: pinches, not finger zones, finish
+    // placement, so a thumb resting on the A button while gripping to move it
+    // cannot finish placement by accident.
+    std::atomic<bool> controllerPlacing{false};
+    XrVector3f virtualControllerPosition = {0.0f, -0.1f, -1.0f};
+    float virtualControllerYaw = 0.0f;
+    int controllerGrabHand = -1;
+    XrVector3f controllerGrabOffset = {};
+    // Virtual-controller finger-press state (VIRTUAL mode, held): per hand, per
+    // fingertip (0 = thumb, 1 = index, 2 = middle, 3 = ring, 4 = little), the
+    // button zone that fingertip is currently pressing, or -1. Frame thread
+    // only. A stale entry self-corrects: the next held frame re-checks the
+    // fingertip against its zone and releases it when it has moved away.
+    int vcPressedZone[HAND_COUNT][5] = {{-1, -1, -1, -1, -1}, {-1, -1, -1, -1, -1}};
+    // Smoothed virtual stick from the holding thumb, frame thread only.
+    XrVector2f vcStick = {};
+    // Per-frame accumulators for the virtual controller's right stick: from the
+    // C-button zones (vcRightStick) and from the D-pad zone (vcDpad). The D-pad
+    // wins when both are pressed, because its modifier is held. Reset every
+    // frame in syncInput; only read while the controller is held.
+    XrVector2f vcRightStick = {};
+    XrVector2f vcDpad = {};
     std::atomic<int> n64Buttons{0};
     std::atomic<float> n64AxisX{0.0f};
     std::atomic<float> n64AxisY{0.0f};
@@ -517,6 +551,80 @@ bool getBool(XrState& xr, ActionId id) {
     return XR_SUCCEEDED(xrGetActionStateBoolean(xr.session, &info, &state)) && state.isActive && state.currentState;
 }
 
+// ---------------------------------------------------------------------------------------------
+// Virtual controller finger-press detection (MODE_VIRTUAL, held during play)
+//
+// Button zones on the 3D controller, in the model's local space (meters). The
+// centers were measured from the shipped asset quest/n64_controller.bin
+// ("N64M" v1, 29,844 vertices): X right, Y out of the button face, Z towards
+// the player (grips). The procedural fallback model in controller_model.cpp
+// has a DIFFERENT layout (~3 cm different in Z), so these zones are only
+// correct for the shipped asset — if the fallback ever renders instead, the
+// zones are off and need re-measuring. All radii are TUNING constants, picked
+// from the model's geometry: they have never been felt on a real hand, so the
+// first Quest 3 playtest is the real check (see HANDOFF.md).
+
+enum VcZoneOutput {
+    VC_OUT_A, VC_OUT_B, VC_OUT_START, VC_OUT_L, VC_OUT_R, VC_OUT_Z,
+    VC_OUT_C_U, VC_OUT_C_D, VC_OUT_C_L, VC_OUT_C_R, VC_OUT_DPAD,
+};
+
+struct VcZone {
+    XrVector3f center;  // model-local meters
+    float pressRadius;  // press when a fingertip comes this close
+    float releaseRadius;  // release only when it moves this far (hysteresis)
+    int output;  // VcZoneOutput
+};
+
+// Face buttons sit ~0.016 m above the model's origin plane; the shoulder
+// triggers (L/R) and the Z trigger sit lower, on the body's edge and underside.
+constexpr VcZone kVcZones[] = {
+    {{0.0414f, 0.016f, -0.0268f}, 0.013f, 0.019f, VC_OUT_A},
+    {{0.0303f, 0.016f, -0.0381f}, 0.013f, 0.019f, VC_OUT_B},
+    {{0.0508f, 0.016f, -0.0535f}, 0.013f, 0.019f, VC_OUT_C_U},
+    {{0.0508f, 0.016f, -0.0390f}, 0.013f, 0.019f, VC_OUT_C_D},
+    {{0.0434f, 0.016f, -0.0464f}, 0.013f, 0.019f, VC_OUT_C_L},
+    {{0.0584f, 0.016f, -0.0464f}, 0.013f, 0.019f, VC_OUT_C_R},
+    {{-0.0002f, 0.016f, -0.0388f}, 0.013f, 0.019f, VC_OUT_START},
+    {{-0.0501f, 0.010f, -0.0639f}, 0.020f, 0.026f, VC_OUT_L},
+    {{0.0501f, 0.010f, -0.0639f}, 0.020f, 0.026f, VC_OUT_R},
+    {{-0.0004f, -0.002f, -0.0334f}, 0.020f, 0.026f, VC_OUT_Z},
+    // The D-pad is one zone; the direction comes from the nearest arm below.
+    {{-0.0481f, 0.014f, -0.0386f}, 0.024f, 0.030f, VC_OUT_DPAD},
+};
+constexpr int kVcZoneCount = sizeof(kVcZones) / sizeof(kVcZones[0]);
+
+// D-pad arms, model-local (x, y, z). U is the far edge (away from the player).
+constexpr XrVector3f kVcDpadArms[4] = {
+    {-0.0481f, 0.014f, -0.0487f},  // up
+    {-0.0481f, 0.014f, -0.0284f},  // down
+    {-0.0585f, 0.014f, -0.0386f},  // left
+    {-0.0376f, 0.014f, -0.0386f},  // right
+};
+// D-pad directions (right-stick x, y) for the arms above: up, down, left, right.
+constexpr XrVector2f kVcDpadDirections[4] = {{0.0f, 1.0f}, {0.0f, -1.0f}, {-1.0f, 0.0f}, {1.0f, 0.0f}};
+
+// Analog stick: the knob's rest center, and how far the holding thumb may
+// move it. Capture is the 3D distance from the knob center inside which the
+// thumb is taken to be on the stick; full deflection is the face-plane
+// displacement for a full stick; deadzone is the face-plane displacement
+// ignored as a resting thumb.
+constexpr XrVector3f kVcStickCenter = {0.0f, 0.023f, -0.006f};
+constexpr float kVcStickCapture = 0.025f;
+constexpr float kVcStickFull = 0.015f;
+constexpr float kVcStickDeadzone = 0.003f;
+
+// How close a palm must be to the controller's center to pick it up: close
+// enough that a grip means "take this", far enough that tracking noise and
+// different hand sizes do not make it fiddly. Also a TUNING constant.
+constexpr float kVcGrabRadius = 0.12f;
+
+// Forward declarations: defined after virtualControllerMatrix, which is where
+// the virtual controller's pose math lives (they need yawPitchQuaternion).
+bool palmNearController(XrState& xr, const XrVector3f& position);
+void applyVirtualControllerInput(XrState& xr, int hand, const questxr::HandInput& handInput, InputState& input,
+                                 jint& buttons, const bool controllerActive[HAND_COUNT]);
+
 void syncInput(JNIEnv* env, XrState& xr, XrTime time) {
     XrActiveActionSet active{xr.actionSet, XR_NULL_PATH};
     XrActionsSyncInfo syncInfo{XR_TYPE_ACTIONS_SYNC_INFO};
@@ -559,6 +667,13 @@ void syncInput(JNIEnv* env, XrState& xr, XrTime time) {
                 input.triggers[HAND_RIGHT] > 0.1f || input.grips[HAND_RIGHT] > 0.1f ||
                 (buttons & (BTN_A | BTN_B | BTN_MENU | BTN_RSTICK)) != 0,
         };
+        // Raw grips first: the Touch action values, raised by a hand's grip
+        // gesture below. The grab logic reads these, so a grip that starts a
+        // hold is never hidden from it by the virtual-controller filtering.
+        xr.rawGrips[HAND_LEFT] = input.grips[HAND_LEFT];
+        xr.rawGrips[HAND_RIGHT] = input.grips[HAND_RIGHT];
+        xr.vcRightStick = {};
+        xr.vcDpad = {};
         for (int hand = 0; hand < HAND_COUNT; ++hand) {
             if (controllerActive[hand]) {
                 continue;
@@ -566,6 +681,33 @@ void syncInput(JNIEnv* env, XrState& xr, XrTime time) {
             const questxr::HandInput& handInput = xr.handTracker.input(hand);
             if (!handInput.active) {
                 continue;
+            }
+            // This hand's grip gesture, unfiltered: left middle pinch is Z,
+            // right fist is the D-pad modifier.
+            float rawGrip = input.grips[hand];
+            if (hand == HAND_LEFT && handInput.middlePinch) rawGrip = 1.0f;
+            if (hand == HAND_RIGHT && handInput.fist) rawGrip = 1.0f;
+            xr.rawGrips[hand] = rawGrip;
+            // The virtual controller, when held, IS the input device: buttons
+            // come from finger positions on it and the stick from the holding
+            // thumb, not from pinches or the palm. The holding grip is consumed
+            // by the hold. Both hands' fingers press the same controller. While
+            // it is not held, the main hand-gesture mode below is untouched.
+            // Not while placing it: pinches, not finger zones, finish
+            // placement (see controllerPlacing).
+            if (xr.controllerVirtual.load() && !xr.controllerPlacing.load()) {
+                if (xr.controllerGrabHand >= 0) {
+                    applyVirtualControllerInput(xr, hand, handInput, input, buttons, controllerActive);
+                    continue;
+                }
+                if (xr.controllerGrabEnabled.load() && rawGrip > 0.7f
+                    && palmNearController(xr, handInput.palmPose.position)) {
+                    // Picking it up this frame: consume the grip so it does not
+                    // fire as a game button, and let the fingers already on it
+                    // press its buttons.
+                    applyVirtualControllerInput(xr, hand, handInput, input, buttons, controllerActive);
+                    continue;
+                }
             }
             input.sticks[hand] = handInput.stick;
             if (hand == HAND_LEFT) {
@@ -578,6 +720,16 @@ void syncInput(JNIEnv* env, XrState& xr, XrTime time) {
                 if (handInput.ringPinch) buttons |= BTN_X;
                 if (handInput.littlePinch) buttons |= BTN_MENU;  // tap = Start, hold = VR menu
                 if (handInput.fist) input.grips[HAND_RIGHT] = 1.0f;  // D-pad modifier
+            }
+        }
+        // The virtual controller's right stick (C-buttons, or the D-pad when its
+        // modifier is held): only while it is held, so a palm stick is never
+        // stomped by a zero in the frame a grab starts.
+        if (xr.controllerGrabHand >= 0 && !xr.controllerPlacing.load() && !controllerActive[HAND_RIGHT]) {
+            if (xr.vcDpad.x != 0.0f || xr.vcDpad.y != 0.0f) {
+                input.sticks[HAND_RIGHT] = xr.vcDpad;
+            } else {
+                input.sticks[HAND_RIGHT] = xr.vcRightStick;
             }
         }
         input.buttons = buttons;
@@ -966,17 +1118,14 @@ XrQuaternionf yawPitchQuaternion(float yaw, float pitch) {
     return {cy * sp, sy * cp, -sy * sp, cy * cp};
 }
 
-// Moves the game screen with the grabbing controller; the stick of that hand scales it.
-// Called on the frame thread after input was synced.
-void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const XrPosef* hands[HAND_COUNT],
-                const XrPosef* head) {
-    const bool enabled = xr.grabEnabled && xr.sessionState == XR_SESSION_STATE_FOCUSED;
-
-    // Without controllers there is no grip pose, but a tracked hand still has a
-    // palm pose in the same LOCAL space, so the screen can be grabbed by hand.
-    // Scoped to grabbing only: the 3D controller model keeps its controller poses.
-    XrPosef palmFallback[HAND_COUNT];
-    const XrPosef* grabHands[HAND_COUNT] = {hands[HAND_LEFT], hands[HAND_RIGHT]};
+// Grab anchor for a hand: the Touch controller grip pose when present, else the
+// tracked palm pose in the same LOCAL space, so the screen and the virtual
+// controller can be grabbed by hand. Scoped to grabbing only: the 3D controller
+// model keeps its controller poses.
+void grabAnchorHands(XrState& xr, const XrPosef* hands[HAND_COUNT], XrPosef* palmFallback,
+                     const XrPosef** grabHands) {
+    grabHands[HAND_LEFT] = hands[HAND_LEFT];
+    grabHands[HAND_RIGHT] = hands[HAND_RIGHT];
     if (xr.handTrackingEnabled.load() && xr.handTracker.available()) {
         for (int hand = 0; hand < HAND_COUNT; ++hand) {
             if (grabHands[hand] != nullptr) {
@@ -989,6 +1138,17 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
             }
         }
     }
+}
+
+// Moves the game screen with the grabbing controller; the stick of that hand scales it.
+// Called on the frame thread after input was synced.
+void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const XrPosef* hands[HAND_COUNT],
+                const XrPosef* head) {
+    const bool enabled = xr.grabEnabled && xr.sessionState == XR_SESSION_STATE_FOCUSED;
+
+    XrPosef palmFallback[HAND_COUNT];
+    const XrPosef* grabHands[HAND_COUNT];
+    grabAnchorHands(xr, hands, palmFallback, grabHands);
 
     if (xr.grabHand >= 0) {
         const int hand = xr.grabHand;
@@ -997,7 +1157,7 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
         {
             std::lock_guard<std::mutex> lock(xr.quadMutex);
             QuadSettings& screen = xr.quads[QUAD_GAME].settings;
-            if (!enabled || xr.input.grips[hand] < 0.5f || grabHands[hand] == nullptr) {
+            if (!enabled || xr.rawGrips[hand] < 0.5f || grabHands[hand] == nullptr) {
                 finished = true;
                 released = screen;
                 xr.grabHand = -1;
@@ -1051,15 +1211,88 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
     }
 
     for (int hand = 0; hand < HAND_COUNT; ++hand) {
-        if (xr.input.grips[hand] > 0.7f && grabHands[hand] == nullptr && !xr.grabBlockedLogged) {
+        if (xr.rawGrips[hand] > 0.7f && grabHands[hand] == nullptr && !xr.grabBlockedLogged) {
             xr.grabBlockedLogged = true;
             LOGE("Grip %d pressed but the hand pose is not tracked", hand);
         }
-        if (xr.input.grips[hand] > 0.7f && grabHands[hand] != nullptr) {
+        if (xr.rawGrips[hand] > 0.7f && grabHands[hand] != nullptr) {
             std::lock_guard<std::mutex> lock(xr.quadMutex);
             xr.grabHand = hand;
             xr.grabOffset = sub(xr.quads[QUAD_GAME].settings.position, grabHands[hand]->position);
             LOGI("Screen grabbed with hand %d", hand);
+            return;
+        }
+    }
+}
+
+// Moves the placed virtual controller with a hand, in placement mode and
+// during play (held-during-play). Mirrors updateGrab: a grip above 0.7 starts
+// a grab, below 0.5 releases it, and the controller follows the grabbing
+// hand's palm with the same offset it had when grabbed. A grab only starts
+// when the hand is close to the controller (palmNearController), so a Z pinch
+// or D-pad-modifier fist made anywhere else in the room stays a game input.
+// Reads the RAW grips, not the game grips: the holding grip is consumed by
+// the hold (it never fires as Z / D-pad modifier), so reading the game grips
+// here would never see it. On release, the pose is reported to Java, which
+// saves it — so putting the controller down mid-game sticks for next time.
+void updateControllerGrab(JNIEnv* env, XrState& xr, const XrPosef* hands[HAND_COUNT], const XrPosef* head) {
+    const bool enabled = xr.controllerGrabEnabled && xr.sessionState == XR_SESSION_STATE_FOCUSED;
+
+    XrPosef palmFallback[HAND_COUNT];
+    const XrPosef* grabHands[HAND_COUNT];
+    grabAnchorHands(xr, hands, palmFallback, grabHands);
+
+    if (xr.controllerGrabHand >= 0) {
+        const int hand = xr.controllerGrabHand;
+        XrVector3f released = {};
+        float releasedYaw = 0.0f;
+        bool finished = false;
+        {
+            std::lock_guard<std::mutex> lock(xr.quadMutex);
+            if (!enabled || xr.rawGrips[hand] < 0.5f || grabHands[hand] == nullptr) {
+                finished = true;
+                xr.controllerGrabHand = -1;
+                released = xr.virtualControllerPosition;
+                releasedYaw = xr.virtualControllerYaw;
+            } else {
+                xr.virtualControllerPosition = add(grabHands[hand]->position, xr.controllerGrabOffset);
+                if (head != nullptr) {
+                    xr.virtualControllerYaw = yawTowards(xr.virtualControllerPosition, head->position);
+                }
+            }
+        }
+        if (finished) {
+            // A hold ended: the stick and the finger presses reset, so the
+            // next hold starts centered with no stuck buttons.
+            xr.vcStick = {};
+            for (int h = 0; h < HAND_COUNT; ++h) {
+                for (int tip = 0; tip < 5; ++tip) {
+                    xr.vcPressedZone[h][tip] = -1;
+                }
+            }
+            LOGI("Virtual controller released at %.2f %.2f %.2f yaw %.2f", released.x, released.y, released.z,
+                 releasedYaw);
+            env->CallVoidMethod(xr.listener, xr.onControllerMoved, released.x, released.y, released.z, releasedYaw);
+            clearException(env, "onXrControllerMoved");
+        }
+        return;
+    }
+
+    if (!enabled) {
+        return;
+    }
+
+    for (int hand = 0; hand < HAND_COUNT; ++hand) {
+        if (xr.rawGrips[hand] > 0.7f && grabHands[hand] == nullptr && !xr.grabBlockedLogged) {
+            xr.grabBlockedLogged = true;
+            LOGE("Grip %d pressed but the hand pose is not tracked", hand);
+        }
+        if (xr.rawGrips[hand] > 0.7f && grabHands[hand] != nullptr
+            && palmNearController(xr, grabHands[hand]->position)) {
+            std::lock_guard<std::mutex> lock(xr.quadMutex);
+            xr.controllerGrabHand = hand;
+            xr.controllerGrabOffset = sub(xr.virtualControllerPosition, grabHands[hand]->position);
+            LOGI("Virtual controller grabbed with hand %d", hand);
             return;
         }
     }
@@ -1138,6 +1371,184 @@ bool controllerMatrix(const XrPosef* hands[HAND_COUNT], float* model) {
                           -flatY.z * 0.02f - flatZ.z * 0.03f});
     questxr::matrixFromBasis(x, flatY, flatZ, center, 1.15f, model);
     return true;
+}
+
+// Model matrix for the placed virtual controller: the saved world pose, yawed
+// around +Y with the same 35-degree face tilt as the between-hands controller.
+bool virtualControllerMatrix(XrState& xr, float* model) {
+    XrVector3f position;
+    float yaw;
+    {
+        std::lock_guard<std::mutex> lock(xr.quadMutex);
+        position = xr.virtualControllerPosition;
+        yaw = xr.virtualControllerYaw;
+    }
+    const XrQuaternionf q = yawPitchQuaternion(yaw, 0.0f);
+    const XrVector3f x = questxr::rotateVector(q, {1.0f, 0.0f, 0.0f});
+    const XrVector3f y = questxr::rotateVector(q, {0.0f, 1.0f, 0.0f});
+    const XrVector3f z = questxr::rotateVector(q, {0.0f, 0.0f, 1.0f});
+    // Flatter than the Touch controllers: tilt the face towards the far edge (rotate around x)
+    const float tilt = 35.0f * static_cast<float>(M_PI) / 180.0f;
+    const float c = std::cos(tilt), s = std::sin(tilt);
+    const XrVector3f flatY = {y.x * c - z.x * s, y.y * c - z.y * s, y.z * c - z.z * s};
+    const XrVector3f flatZ = {z.x * c + y.x * s, z.y * c + y.y * s, z.z * c + y.z * s};
+    questxr::matrixFromBasis(x, flatY, flatZ, position, 1.15f, model);
+    return true;
+}
+
+// World (LOCAL-space) point -> virtual-controller model-local point. The
+// inverse of virtualControllerMatrix: same yaw + 35-degree tilt + 1.15 scale,
+// undone with dot products against the orthonormal basis (no matrix inverse).
+XrVector3f toControllerLocal(XrState& xr, const XrVector3f& world) {
+    XrVector3f position;
+    float yaw;
+    {
+        std::lock_guard<std::mutex> lock(xr.quadMutex);
+        position = xr.virtualControllerPosition;
+        yaw = xr.virtualControllerYaw;
+    }
+    const XrQuaternionf q = yawPitchQuaternion(yaw, 0.0f);
+    const XrVector3f x = questxr::rotateVector(q, {1.0f, 0.0f, 0.0f});
+    const XrVector3f y = questxr::rotateVector(q, {0.0f, 1.0f, 0.0f});
+    const XrVector3f z = questxr::rotateVector(q, {0.0f, 0.0f, 1.0f});
+    const float tilt = 35.0f * static_cast<float>(M_PI) / 180.0f;
+    const float c = std::cos(tilt), s = std::sin(tilt);
+    const XrVector3f flatY = {y.x * c - z.x * s, y.y * c - z.y * s, y.z * c - z.z * s};
+    const XrVector3f flatZ = {z.x * c + y.x * s, z.y * c + y.y * s, z.z * c + y.z * s};
+    const XrVector3f d = {(world.x - position.x) / 1.15f, (world.y - position.y) / 1.15f,
+                          (world.z - position.z) / 1.15f};
+    return {dot(d, x), dot(d, flatY), dot(d, flatZ)};
+}
+
+// True when a world position is close enough to the virtual controller's
+// center to pick it up. The gate that keeps a Z pinch or D-pad-modifier fist
+// made anywhere else in the room a game input instead of a grab.
+bool palmNearController(XrState& xr, const XrVector3f& position) {
+    XrVector3f center;
+    {
+        std::lock_guard<std::mutex> lock(xr.quadMutex);
+        center = xr.virtualControllerPosition;
+    }
+    const XrVector3f d = sub(position, center);
+    return dot(d, d) < kVcGrabRadius * kVcGrabRadius;
+}
+
+// Drive the N64 input from finger positions on the held virtual controller.
+// Called once per hand, per frame, while the controller is held (or being
+// picked up). The controller is the input device then: pinches and the palm
+// stick are suppressed for that hand (syncInput skips the normal overlay),
+// and this function fills the same Touch-like values instead.
+//
+// Per fingertip, nearest zone wins (one fingertip presses at most one button),
+// with press/release hysteresis per fingertip (xr.vcPressedZone) so a finger
+// resting on the edge of a button does not flutter. Buttons, triggers and
+// grips are set-only (OR across both hands: either hand's finger can press
+// them). The right stick is accumulated into xr.vcRightStick / xr.vcDpad and
+// written to input.sticks[HAND_RIGHT] by syncInput after the hand loop, so
+// both hands' C-buttons and D-pad directions combine instead of one hand
+// overwriting the other. The analog stick comes only from the HOLDING hand's
+// thumb, on the stick knob, and only when no Touch controller is driving the
+// left stick (controllers win).
+void applyVirtualControllerInput(XrState& xr, int hand, const questxr::HandInput& handInput, InputState& input,
+                                 jint& buttons, const bool controllerActive[HAND_COUNT]) {
+    // Fingertip positions in controller-local space. Index 0 is the thumb.
+    XrVector3f tips[5];
+    bool tipValid[5];
+    tips[0] = toControllerLocal(xr, handInput.thumbTip);
+    tipValid[0] = true;  // the thumb tip is valid whenever the hand is active
+    for (int finger = 0; finger < 4; ++finger) {
+        tipValid[finger + 1] = handInput.fingerTipValid[finger];
+        tips[finger + 1] = tipValid[finger + 1] ? toControllerLocal(xr, handInput.fingerTips[finger])
+                                                : XrVector3f{};
+    }
+
+    for (int tip = 0; tip < 5; ++tip) {
+        if (!tipValid[tip]) {
+            xr.vcPressedZone[hand][tip] = -1;
+            continue;
+        }
+        // Hysteresis: a zone already pressed stays pressed until the fingertip
+        // moves past its release radius; a new press needs the press radius.
+        int pressed = xr.vcPressedZone[hand][tip];
+        if (pressed >= 0) {
+            const XrVector3f d = sub(tips[tip], kVcZones[pressed].center);
+            if (std::sqrt(dot(d, d)) > kVcZones[pressed].releaseRadius) {
+                pressed = -1;
+            }
+        }
+        if (pressed < 0) {
+            int best = -1;
+            float bestDistance = 0.0f;
+            for (int zone = 0; zone < kVcZoneCount; ++zone) {
+                const XrVector3f d = sub(tips[tip], kVcZones[zone].center);
+                const float distance = std::sqrt(dot(d, d));
+                if (distance < kVcZones[zone].pressRadius && (best < 0 || distance < bestDistance)) {
+                    best = zone;
+                    bestDistance = distance;
+                }
+            }
+            pressed = best;
+        }
+        xr.vcPressedZone[hand][tip] = pressed;
+        if (pressed < 0) {
+            continue;
+        }
+        switch (kVcZones[pressed].output) {
+            case VC_OUT_A: buttons |= BTN_A; break;
+            case VC_OUT_B: buttons |= BTN_B; break;
+            case VC_OUT_START: buttons |= BTN_MENU; break;  // tap = Start, hold = VR menu
+            case VC_OUT_L: input.triggers[HAND_LEFT] = 1.0f; break;
+            case VC_OUT_R: input.triggers[HAND_RIGHT] = 1.0f; break;
+            case VC_OUT_Z: input.grips[HAND_LEFT] = 1.0f; break;
+            case VC_OUT_C_U: xr.vcRightStick.y = std::min(1.0f, xr.vcRightStick.y + 1.0f); break;
+            case VC_OUT_C_D: xr.vcRightStick.y = std::max(-1.0f, xr.vcRightStick.y - 1.0f); break;
+            case VC_OUT_C_L: xr.vcRightStick.x = std::max(-1.0f, xr.vcRightStick.x - 1.0f); break;
+            case VC_OUT_C_R: xr.vcRightStick.x = std::min(1.0f, xr.vcRightStick.x + 1.0f); break;
+            case VC_OUT_DPAD: {
+                // Nearest arm is the direction; the D-pad also holds the
+                // D-pad modifier, so the right stick reads as a D-pad.
+                int bestArm = 0;
+                float bestDistance = 0.0f;
+                for (int arm = 0; arm < 4; ++arm) {
+                    const float dx = tips[tip].x - kVcDpadArms[arm].x;
+                    const float dz = tips[tip].z - kVcDpadArms[arm].z;
+                    const float distance = dx * dx + dz * dz;
+                    if (arm == 0 || distance < bestDistance) {
+                        bestArm = arm;
+                        bestDistance = distance;
+                    }
+                }
+                xr.vcDpad.x = std::min(1.0f, std::max(-1.0f, xr.vcDpad.x + kVcDpadDirections[bestArm].x));
+                xr.vcDpad.y = std::min(1.0f, std::max(-1.0f, xr.vcDpad.y + kVcDpadDirections[bestArm].y));
+                input.grips[HAND_RIGHT] = 1.0f;  // D-pad modifier
+                break;
+            }
+            default: break;
+        }
+    }
+
+    // Analog stick: the holding thumb's displacement from the stick knob's rest
+    // center, in the face plane. Only the holding hand's thumb drives it, and
+    // only while it is on the knob (inside the capture radius); lifting the
+    // thumb lets the stick spring back to center through the smoothing. The
+    // left Touch controller wins over the virtual stick when it is picked up.
+    if (hand == xr.controllerGrabHand && !controllerActive[HAND_LEFT]) {
+        const XrVector3f local = tips[0];
+        const XrVector3f d = sub(local, kVcStickCenter);
+        XrVector2f target = {};
+        if (std::sqrt(dot(d, d)) < kVcStickCapture) {
+            const float dx = local.x - kVcStickCenter.x;
+            const float dz = local.z - kVcStickCenter.z;
+            if (std::sqrt(dx * dx + dz * dz) > kVcStickDeadzone) {
+                // -Z is away from the player, which is stick-up.
+                target.x = std::min(1.0f, std::max(-1.0f, dx / kVcStickFull));
+                target.y = std::min(1.0f, std::max(-1.0f, -dz / kVcStickFull));
+            }
+        }
+        xr.vcStick.x += (target.x - xr.vcStick.x) * 0.5f;
+        xr.vcStick.y += (target.y - xr.vcStick.y) * 0.5f;
+        input.sticks[HAND_LEFT] = xr.vcStick;
+    }
 }
 
 // A quad the pointer ray can hit, in world space
@@ -1334,7 +1745,8 @@ void drawRay(XrState& xr, const float* viewProjection, const XrVector3f& eye) {
 bool renderController(XrState& xr, XrTime time, const XrPosef* hands[HAND_COUNT],
                       XrCompositionLayerProjectionView views[2]) {
     float model[16];
-    const bool drawController = xr.controller3dVisible && controllerMatrix(hands, model);
+    const bool drawController = xr.controller3dVisible &&
+        (xr.controllerVirtual.load() ? virtualControllerMatrix(xr, model) : controllerMatrix(hands, model));
     if (xr.eyeSwapchains[0] == XR_NULL_HANDLE || (!drawController && !xr.pointerHit)) {
         return false;
     }
@@ -1492,6 +1904,7 @@ void renderFrame(XrState& xr, JNIEnv* env) {
     XrPosef headPose;
     const XrPosef* head = locate(xr, xr.viewSpace, time, headPose) ? &headPose : nullptr;
     updateGrab(env, xr, time, frameState.predictedDisplayPeriod, hands, head);
+    updateControllerGrab(env, xr, hands, head);
     updateRecenter(env, xr, head);
     if (xr.immersiveGame.load()) {
         updateImmersiveViews(xr, time);
@@ -1920,9 +2333,10 @@ Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeCreate(JNIEnv* env, j
     xr->onInput = env->GetMethodID(listenerClass, "onXrInput", "(FFFFFFFFI)V");
     xr->onSessionState = env->GetMethodID(listenerClass, "onXrSessionState", "(I)V");
     xr->onScreenMoved = env->GetMethodID(listenerClass, "onXrScreenMoved", "(FFFFF)V");
+    xr->onControllerMoved = env->GetMethodID(listenerClass, "onXrControllerMoved", "(FFFF)V");
     xr->onPointer = env->GetMethodID(listenerClass, "onXrPointer", "(IFFZ)V");
     if (xr->onInput == nullptr || xr->onSessionState == nullptr || xr->onScreenMoved == nullptr ||
-        xr->onPointer == nullptr) {
+        xr->onControllerMoved == nullptr || xr->onPointer == nullptr) {
         env->ExceptionClear();
         LOGE("Listener is missing callback methods");
         destroyXr(env, xr);
@@ -2162,6 +2576,57 @@ JNIEXPORT void JNICALL
 Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetController3dVisible(JNIEnv*, jclass, jboolean visible) {
     if (gXr != nullptr) {
         gXr->controller3dVisible = visible;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetControllerVirtual(JNIEnv*, jclass, jboolean enabled) {
+    if (gXr != nullptr) {
+        gXr->controllerVirtual = enabled;
+    }
+}
+
+JNIEXPORT void JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetVirtualControllerPose(JNIEnv*, jclass, jfloat x,
+                                                                                     jfloat y, jfloat z, jfloat yaw) {
+    if (gXr != nullptr) {
+        std::lock_guard<std::mutex> lock(gXr->quadMutex);
+        gXr->virtualControllerPosition = {x, y, z};
+        gXr->virtualControllerYaw = yaw;
+    }
+}
+
+// The placed virtual controller's pose as [x, y, z, yaw], read when placement finishes
+JNIEXPORT jfloatArray JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeGetVirtualControllerPose(JNIEnv* env, jclass) {
+    float pose[4] = {0.0f, -0.1f, -1.0f, 0.0f};
+    if (gXr != nullptr) {
+        std::lock_guard<std::mutex> lock(gXr->quadMutex);
+        pose[0] = gXr->virtualControllerPosition.x;
+        pose[1] = gXr->virtualControllerPosition.y;
+        pose[2] = gXr->virtualControllerPosition.z;
+        pose[3] = gXr->virtualControllerYaw;
+    }
+    jfloatArray result = env->NewFloatArray(4);
+    if (result != nullptr) {
+        env->SetFloatArrayRegion(result, 0, 4, pose);
+    }
+    return result;
+}
+
+JNIEXPORT void JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetControllerGrabEnabled(JNIEnv*, jclass, jboolean enabled) {
+    if (gXr != nullptr) {
+        gXr->controllerGrabEnabled = enabled;
+    }
+}
+
+// While placing, the finger-press path is off (see controllerPlacing): pinches,
+// not finger zones, finish placement.
+JNIEXPORT void JNICALL
+Java_paulscode_android_mupen64plusae_game_xr_QuestXr_nativeSetControllerPlacing(JNIEnv*, jclass, jboolean placing) {
+    if (gXr != nullptr) {
+        gXr->controllerPlacing = placing;
     }
 }
 
