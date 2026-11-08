@@ -206,6 +206,10 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     private static final String XR_PREF_SCREEN_DISTANCE = "screen_distance";
     private static final String XR_PREF_PASSTHROUGH = "passthrough";
     private static final String XR_PREF_CONTROLLER_MODE = "controller_mode";
+    private static final String XR_PREF_CONTROLLER_X = "controller_x";
+    private static final String XR_PREF_CONTROLLER_Y = "controller_y";
+    private static final String XR_PREF_CONTROLLER_Z = "controller_z";
+    private static final String XR_PREF_CONTROLLER_YAW = "controller_yaw";
     private static final int XR_MENU_WIDTH = 1024;
     private static final int XR_MENU_HEIGHT = 1480;
     private static final float XR_MENU_SIZE = 0.85f;
@@ -229,8 +233,14 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     private boolean mXrPassthroughSupported = false;
     private boolean mXrPassthrough = false;
     private boolean mXrAdjusting = false;
+    private boolean mXrPlacingController = false;
     private QuestNetplayMenu mQuestNetplayMenu;
     private int mXrControllerMode = QuestN64Overlay.MODE_HANDS;
+    // Placed virtual controller pose in the tracking space
+    private float mXrControllerX = 0.0f;
+    private float mXrControllerY = -0.1f;
+    private float mXrControllerZ = -1.0f;
+    private float mXrControllerYaw = 0.0f;
     // Game screen pose in the tracking space
     private float mXrScreenX = 0.0f;
     private float mXrScreenY = 0.0f;
@@ -596,6 +606,7 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
                 // AR mode is a floating screen, never fullscreen: passthrough wins over immersive
                 if (mXrPassthrough) QuestXr.setImmersiveGame(false);
                 loadXrScreen();
+                loadXrVirtualController();
                 updateXrQuads();
                 QuestXr.loadControllerModel(getAssets());
                 QuestXr.start();
@@ -971,6 +982,33 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
         mXrScreenSize = xrPrefs.getFloat(prefix + XR_PREF_SCREEN_SIZE, getXrDefaultScreenSize());
     }
 
+    /** Load the placed virtual controller pose; the default sits below the game screen. */
+    private void loadXrVirtualController()
+    {
+        final SharedPreferences xrPrefs = getSharedPreferences(XR_PREFS, MODE_PRIVATE);
+        final String prefix = getXrScreenPrefPrefix();
+        mXrControllerX = xrPrefs.getFloat(prefix + XR_PREF_CONTROLLER_X, mXrScreenX);
+        mXrControllerY = xrPrefs.getFloat(prefix + XR_PREF_CONTROLLER_Y, mXrScreenY - 0.55f);
+        mXrControllerZ = xrPrefs.getFloat(prefix + XR_PREF_CONTROLLER_Z, mXrScreenZ + 0.8f);
+        mXrControllerYaw = xrPrefs.getFloat(prefix + XR_PREF_CONTROLLER_YAW, mXrScreenYaw);
+        QuestXr.setVirtualControllerPose(mXrControllerX, mXrControllerY, mXrControllerZ, mXrControllerYaw);
+    }
+
+    private void saveXrVirtualController(float x, float y, float z, float yaw)
+    {
+        mXrControllerX = x;
+        mXrControllerY = y;
+        mXrControllerZ = z;
+        mXrControllerYaw = yaw;
+        final String prefix = getXrScreenPrefPrefix();
+        getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit()
+                .putFloat(prefix + XR_PREF_CONTROLLER_X, x)
+                .putFloat(prefix + XR_PREF_CONTROLLER_Y, y)
+                .putFloat(prefix + XR_PREF_CONTROLLER_Z, z)
+                .putFloat(prefix + XR_PREF_CONTROLLER_YAW, yaw)
+                .apply();
+    }
+
     private void updateXrQuads()
     {
         final boolean menuOpen = (mQuestVrMenu != null && mQuestVrMenu.isOpen()) || isXrNetplayMenuOpen();
@@ -998,7 +1036,15 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
             mQuestSpatialDock.refresh();
         }
 
-        QuestXr.setController3dVisible(mXrControllerMode == QuestN64Overlay.MODE_HANDS);
+        QuestXr.setController3dVisible(mXrControllerMode == QuestN64Overlay.MODE_HANDS
+                || mXrControllerMode == QuestN64Overlay.MODE_VIRTUAL);
+        QuestXr.setControllerVirtual(mXrControllerMode == QuestN64Overlay.MODE_VIRTUAL);
+        // The virtual controller can be grabbed in play as well as while placing
+        // it — that is the held-during-play mode. It stays off while the game
+        // screen is being adjusted, so a grip there moves the screen, not the
+        // controller. updateXrQuads is the single owner of this flag.
+        QuestXr.setControllerGrabEnabled(mXrControllerMode == QuestN64Overlay.MODE_VIRTUAL
+                && (!mXrAdjusting || mXrPlacingController));
         final float width = mXrScreenSize * 0.35f;
         final float height = width * XR_CONTROLLER_HEIGHT / XR_CONTROLLER_WIDTH;
         final float controllerY = dockVisible
@@ -1236,9 +1282,34 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     }
 
     @Override
+    public void onVrMenuPlaceController()
+    {
+        Log.i(TAG, "Placing VR controller");
+        mXrAdjusting = true;
+        mXrPlacingController = true;
+        mQuestTouchController.setMenuOpen(false);
+        mQuestTouchController.setAdjusting(true);
+        QuestXr.setGrabEnabled(false);
+        QuestXr.setStickResizeEnabled(false);
+        QuestXr.setControllerPlacing(true);
+        mQuestVrMenu.drawPlaceControllerHint();
+        updateXrQuads();
+    }
+
+    @Override
     public void onXrAdjustFinished()
     {
-        Log.i(TAG, "VR screen adjusted");
+        if (mXrPlacingController) {
+            Log.i(TAG, "VR controller placed");
+            mXrPlacingController = false;
+            QuestXr.setControllerPlacing(false);
+            final float[] pose = QuestXr.getVirtualControllerPose();
+            if (pose != null && pose.length == 4) {
+                saveXrVirtualController(pose[0], pose[1], pose[2], pose[3]);
+            }
+        } else {
+            Log.i(TAG, "VR screen adjusted");
+        }
         mXrAdjusting = false;
         mQuestTouchController.setAdjusting(false);
         QuestXr.setGrabEnabled(false);
@@ -1286,6 +1357,14 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
                 .putFloat(prefix + XR_PREF_SCREEN_YAW, yaw)
                 .putFloat(prefix + XR_PREF_SCREEN_SIZE, width)
                 .apply();
+    }
+
+    @Override
+    public void onXrControllerMoved(float x, float y, float z, float yaw)
+    {
+        // A hold released mid-game: the put-down pose sticks for next time,
+        // the same as placement finishing does.
+        saveXrVirtualController(x, y, z, yaw);
     }
 
     @Override
