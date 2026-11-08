@@ -45,6 +45,8 @@ public class QuestTouchController extends AbstractController implements QuestXr.
 
         void onXrScreenMoved(float x, float y, float z, float yaw, float width);
 
+                void onXrControllerMoved(float x, float y, float z, float yaw);
+        
         /** A controller aims at a pointable quad, or quad is -1 when the ray left all of them. */
         void onXrPointerMoved(int quad, float u, float v);
 
@@ -265,6 +267,12 @@ public class QuestTouchController extends AbstractController implements QuestXr.
         post(() -> mSessionListener.onXrScreenMoved(x, y, z, yaw, width));
     }
 
+        @Override
+        public void onXrControllerMoved(float x, float y, float z, float yaw)
+    {
+                post(() -> mSessionListener.onXrControllerMoved(x, y, z, yaw));
+    }
+    
     /** Release all N64 buttons and center the stick. */
     public void releaseAll()
     {
