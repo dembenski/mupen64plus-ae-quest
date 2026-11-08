@@ -242,6 +242,7 @@ void HandTracker::update(XrTime time) {
 
         out.active = true;
         out.stick = state.stick;
+        out.palmPose = joints[kPalm].pose;  // LOCAL space, same as the controller grip poses
         out.indexPinch = pinches[0];
         out.middlePinch = pinches[1];
         out.ringPinch = pinches[2];
