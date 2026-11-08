@@ -216,3 +216,48 @@ per game settings in its `GLideN64.custom.ini`.
 ## License
 
 GPL-3.0, like the project it comes from. See [gpl-license](gpl-license).
+
+# Vapor64 VR — Hand tracking how-to (no controller needed)
+
+Your hands are the controller. Pinches are quick taps — pinch and let go.
+
+## Move and look
+
+- **Move (stick):** move your **left palm** — push forward to go up, pull back to go down
+- **Camera (C-buttons):** move your **right palm**
+
+## Buttons (pinch thumb + finger)
+
+| Pinch | Button |
+|---|---|
+| Right thumb + index finger | A |
+| Right thumb + middle finger | B |
+| Left thumb + index finger | L |
+| Left thumb + middle finger | Z |
+| Left thumb + ring finger | R |
+| Right thumb + little finger, **quick tap** | Start |
+| Right thumb + little finger, **hold ~1 second** | VR menu |
+
+## The menu
+
+- Move your **left palm** to move the highlight, **tap right pinky** to pick.
+- Tip: if the menu keeps opening instead of Start, snap the pinky pinch faster — like snapping your fingers.
+
+## Tips
+
+- Hand tracking needs light — a dim room makes it worse.
+- If a hand leaves the headset's view, its buttons release — nothing gets stuck.
+- Pick up a controller any time and it takes over from that hand instantly; put it down and the hand takes over again.
+
+
+
+
+
+
+
+
+
+
+
+
+
