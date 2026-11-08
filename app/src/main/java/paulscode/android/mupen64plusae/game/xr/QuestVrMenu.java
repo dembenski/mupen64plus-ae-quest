@@ -71,12 +71,17 @@ public class QuestVrMenu
         int getControllerMode();
 
         void setControllerMode(int mode);
+
+        /** Built-in keyboard map on/off (takes effect the next game started). */
+        boolean isKeyboardEnabled();
+
+        void setKeyboardEnabled(boolean enabled);
     }
 
     private enum Item
     {
         RESUME, SAVE, LOAD, SLOT, ADJUST_SCREEN, PLACE_CONTROLLER, RESET_SCREEN, PASSTHROUGH, CONTROLLER, HAND_MODE,
-        SPEED, FRAME_LIMITER, SCREENSHOT, RESET, EXIT
+        KEYBOARD, SPEED, FRAME_LIMITER, SCREENSHOT, RESET, EXIT
     }
 
     private final Surface mSurface;
@@ -260,6 +265,7 @@ public class QuestVrMenu
                 draw();
                 break;
             case HAND_MODE:
+            case KEYBOARD:
             case PASSTHROUGH:
             case SPEED:
             case FRAME_LIMITER:
@@ -306,6 +312,9 @@ public class QuestVrMenu
                 mHost.setControllerMode(mHost.getControllerMode() == QuestN64Overlay.MODE_VIRTUAL
                         ? QuestN64Overlay.MODE_HANDS : QuestN64Overlay.MODE_VIRTUAL);
                 refreshItems();
+                break;
+            case KEYBOARD:
+                mHost.setKeyboardEnabled(!mHost.isKeyboardEnabled());
                 break;
             case SPEED:
                 mCoreFragment.toggleSpeed();
@@ -403,6 +412,8 @@ public class QuestVrMenu
                 return mResources.getString(R.string.questMenu_labelController);
             case HAND_MODE:
                 return mResources.getString(R.string.quest_virtual_handMode);
+            case KEYBOARD:
+                return mResources.getString(R.string.questMenu_labelKeyboard);
             case SPEED:
                 return mResources.getString(R.string.questMenu_labelSpeed);
             case FRAME_LIMITER:
@@ -440,6 +451,8 @@ public class QuestVrMenu
                 return controllerModeLabel(mHost.getControllerMode());
             case HAND_MODE:
                 return handModeLabel(mHost.getControllerMode());
+            case KEYBOARD:
+                return onOff(mHost.isKeyboardEnabled());
             case SPEED:
                 return mCoreFragment.getCurrentSpeed() + " %";
             case FRAME_LIMITER:
