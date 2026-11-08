@@ -1439,6 +1439,36 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 .show(getSupportFragmentManager(), STATE_HAND_TRACKING_TIPS_POPUP)));
     }
 
+    /** AR mode is the passthrough pref GameActivity reads at launch; the names must match its XR_PREFS. */
+    private static final String XR_PREFS = "quest_xr";
+    private static final String XR_PREF_PASSTHROUGH = "passthrough";
+
+    private boolean isArModeEnabled()
+    {
+        return getSharedPreferences(XR_PREFS, MODE_PRIVATE).getBoolean(XR_PREF_PASSTHROUGH, false);
+}
+
+    private void setArModeEnabled(boolean enabled)
+    {
+        getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putBoolean(XR_PREF_PASSTHROUGH, enabled).apply();
+}
+
+    private void buildQuestArMode(List<QuestEntry> entries)
+    {
+        entries.add(new QuestEntry(R.drawable.ic_stereo_3d, getString(R.string.quest_arMode),
+                getString(isArModeEnabled()? R.string.quest_arMode_onSummary: R.string.quest_arMode_offSummary),
+                () -> {
+                    setArModeEnabled(!isArModeEnabled());
+                    showQuestSection(QuestSection.AR_MODE);
+}));
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_ar_place),
+                getString(R.string.quest_ar_placeSummary), () -> Popups.newInstance(this, STATE_AR_PLACE_POPUP)
+.show(getSupportFragmentManager(), STATE_AR_PLACE_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_help, getString(R.string.quest_ar_tips),
+                getString(R.string.quest_ar_tipsSummary), () -> Popups.newInstance(this, STATE_AR_TIPS_POPUP)
+.show(getSupportFragmentManager(), STATE_AR_TIPS_POPUP)));
+}
+
     private void updateQuestLibraryCount(List<GalleryItem> shownItems)
     {
         final TextView subtitle = findViewById(R.id.questSubtitle);
