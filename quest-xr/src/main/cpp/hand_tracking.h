@@ -42,6 +42,13 @@ struct HandInput {
     bool littlePinch = false;  // thumb tip to little fingertip
     bool fist = false;  // all four fingertips curled to the palm
     XrPosef palmPose = {};  // palm joint pose in LOCAL space, valid when active
+// Fingertip positions in the same LOCAL space, for the virtual controller's
+// finger-press detection (quest_xr.cpp). The thumb tip is valid whenever
+// the hand is active (locateJoints requires it); a finger tip is only
+// valid when that joint was located this frame.
+XrVector3f thumbTip = {};
+XrVector3f fingerTips[4] = {};  // index, middle, ring, little
+bool fingerTipValid[4] = {};
 };
 
 class HandTracker {
