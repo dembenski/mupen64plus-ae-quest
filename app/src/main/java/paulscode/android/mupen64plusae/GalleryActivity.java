@@ -1196,6 +1196,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         findViewById(R.id.railAddRoms).setSelected(mQuestSection == QuestSection.ADD_ROMS);
         findViewById(R.id.railTools).setSelected(mQuestSection == QuestSection.TOOLS);
         findViewById(R.id.railHandTracking).setSelected(mQuestSection == QuestSection.HAND_TRACKING);
+        findViewById(R.id.railArMode).setSelected(mQuestSection == QuestSection.AR_MODE);
         findViewById(R.id.railAbout).setSelected(mQuestSection == QuestSection.ABOUT);
     }
 
