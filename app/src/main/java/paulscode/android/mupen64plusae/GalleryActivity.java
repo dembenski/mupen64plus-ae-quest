@@ -1135,7 +1135,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         mLaunchGame.launch(intent);
     }
 
-    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT }
+    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT, HAND_TRACKING }
 
     private QuestSection mQuestSection = QuestSection.LIBRARY;
 
