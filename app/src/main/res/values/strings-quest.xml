@@ -83,6 +83,20 @@
     <string name="quest_about_model">3D controller model</string>
     <string name="quest_about_modelSummary">\"N64 Controller\" by Marshle, CC BY 4.0</string>
     <string name="quest_about_modelUri" translatable="false">https://sketchfab.com/3d-models/n64-controller-8fb694b8c4bf4bbb8bc66f38503f4ffb</string>
+    <string name="quest_handTracking">Hand tracking</string>
+    <string name="quest_handTracking_subtitle">Play without a controller</string>
+    <string name="quest_hand_left">Left hand</string>
+    <string name="quest_hand_leftSummary">Stick, L, Z and R</string>
+    <string name="quest_hand_left_text">Move (stick): move your left palm. Push forward to go up, pull back to go down.\n\nPinch thumb + finger (quick taps — pinch and let go):\n• Index finger — L\n• Middle finger — Z\n• Ring finger — R</string>
+    <string name="quest_hand_right">Right hand</string>
+    <string name="quest_hand_rightSummary">C-buttons, A, B and X</string>
+    <string name="quest_hand_right_text">Camera (C-buttons): move your right palm.\n\nPinch thumb + finger (quick taps — pinch and let go):\n• Index finger — A\n• Middle finger — B\n• Ring finger — X (not used in most games)</string>
+    <string name="quest_hand_start">Start and menu</string>
+    <string name="quest_hand_startSummary">Pinky tap and hold</string>
+    <string name="quest_hand_start_text">Quick tap right thumb + little finger — Start.\n\nHold the same pinch for about 1 second — VR menu.\n\nIn the menu: move your left palm to move the highlight, tap right pinky to pick. The menu pointer stays controller-only in v1.\n\nTip: if the menu keeps opening instead of Start, snap the pinky pinch faster — like snapping your fingers.</string>
+    <string name="quest_hand_tips">Tips</string>
+    <string name="quest_hand_tipsSummary">Controllers, light and tracking</string>
+    <string name="quest_hand_tips_text">• Your hands are the controller — no controller needed.\n• Pick up a controller any time and it takes over from that hand instantly. Put it down and the hand takes over again.\n• Hand tracking needs light — a dim room makes it worse.\n• If a hand leaves the headset view, its buttons release — nothing gets stuck.\n• Close this guide with the B button (right middle-finger pinch).</string>
     <string name="quest_scan_folderSummary">Scan a folder and all of its subfolders</string>
     <string name="quest_scan_fileSummary">Add a single ROM file</string>
     <string name="quest_scan_pathSummary">Type a storage path by hand</string>
