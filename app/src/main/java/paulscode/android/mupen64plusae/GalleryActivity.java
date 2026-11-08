@@ -93,6 +93,7 @@ import paulscode.android.mupen64plusae.util.LegacyFilePicker;
 import paulscode.android.mupen64plusae.util.FileUtil;
 import paulscode.android.mupen64plusae.util.LocaleContextWrapper;
 import paulscode.android.mupen64plusae.util.Notifier;
+import paulscode.android.mupen64plusae.game.xr.QuestN64Overlay;
 import paulscode.android.mupen64plusae.game.xr.QuestXr;
 
 public class GalleryActivity extends AppCompatActivity implements PromptConfirmListener,
@@ -119,6 +120,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
     private static final String STATE_HAND_TRACKING_TIPS_POPUP = "STATE_HAND_TRACKING_TIPS_POPUP";        
     private static final String STATE_AR_PLACE_POPUP = "STATE_AR_PLACE_POPUP";
     private static final String STATE_AR_TIPS_POPUP = "STATE_AR_TIPS_POPUP";
+    private static final String STATE_VIRTUAL_PLACE_POPUP = "STATE_VIRTUAL_PLACE_POPUP";
+    private static final String STATE_VIRTUAL_TIPS_POPUP = "STATE_VIRTUAL_TIPS_POPUP";
     public static final String KEY_IS_LEANBACK = "KEY_IS_LEANBACK";
     public static final String KEY_IS_SHORTCUT = "KEY_IS_SHORTCUT";
 
@@ -1137,7 +1140,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         mLaunchGame.launch(intent);
     }
 
-    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT, HAND_TRACKING, AR_MODE }
+    private enum QuestSection { LIBRARY, SETTINGS, PROFILES, TOOLS, ADD_ROMS, ABOUT, HAND_TRACKING, AR_MODE, VIRTUAL_CONTROLLER }
 
     private QuestSection mQuestSection = QuestSection.LIBRARY;
 
@@ -1175,6 +1178,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 v -> showQuestSection(QuestSection.HAND_TRACKING));
         setupQuestRailItem(R.id.railArMode, R.drawable.ic_stereo_3d, R.string.quest_arMode,
                 v -> showQuestSection(QuestSection.AR_MODE));
+        setupQuestRailItem(R.id.railVirtualController, R.drawable.ic_gamepad, R.string.quest_virtualController,
+                v -> showQuestSection(QuestSection.VIRTUAL_CONTROLLER));
         setupQuestRailItem(R.id.railAbout, R.drawable.ic_about, R.string.menuItem_about,
                 v -> showQuestSection(QuestSection.ABOUT));
         updateQuestRailSelection();
@@ -1197,6 +1202,7 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
         findViewById(R.id.railTools).setSelected(mQuestSection == QuestSection.TOOLS);
         findViewById(R.id.railHandTracking).setSelected(mQuestSection == QuestSection.HAND_TRACKING);
         findViewById(R.id.railArMode).setSelected(mQuestSection == QuestSection.AR_MODE);
+        findViewById(R.id.railVirtualController).setSelected(mQuestSection == QuestSection.VIRTUAL_CONTROLLER);
         findViewById(R.id.railAbout).setSelected(mQuestSection == QuestSection.ABOUT);
     }
 
@@ -1265,6 +1271,11 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 title.setText(R.string.quest_arMode);
                 subtitle.setText(R.string.quest_arMode_subtitle);
                 buildQuestArMode(entries);
+                break;
+            case VIRTUAL_CONTROLLER:
+                title.setText(R.string.quest_virtualController);
+                subtitle.setText(R.string.quest_virtualController_subtitle);
+                buildQuestVirtualController(entries);
                 break;
         case ABOUT:
                 title.setText(R.string.menuItem_about);
@@ -1468,6 +1479,48 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 getString(R.string.quest_ar_tipsSummary), () -> Popups.newInstance(this, STATE_AR_TIPS_POPUP)
 .show(getSupportFragmentManager(), STATE_AR_TIPS_POPUP)));
 }
+
+    /** Controller display mode; the name must match GameActivity's XR_PREFS. */
+    private static final String XR_PREF_CONTROLLER_MODE = "controller_mode";
+
+    private int getControllerMode()
+    {
+        return getSharedPreferences(XR_PREFS, MODE_PRIVATE).getInt(XR_PREF_CONTROLLER_MODE,
+                QuestN64Overlay.MODE_HANDS);
+    }
+
+    private void setControllerMode(int mode)
+    {
+        getSharedPreferences(XR_PREFS, MODE_PRIVATE).edit().putInt(XR_PREF_CONTROLLER_MODE, mode).apply();
+    }
+
+    /** The hand-tracking mode: the digital controller, or hand gestures in any other mode. */
+    private String handModeSummary(int mode)
+    {
+        return getString(mode == QuestN64Overlay.MODE_VIRTUAL
+                ? R.string.quest_handController : R.string.quest_handGestures);
+    }
+
+    private void buildQuestVirtualController(List<QuestEntry> entries)
+    {
+        entries.add(new QuestEntry(R.drawable.ic_controller, getString(R.string.quest_virtual_handMode),
+                handModeSummary(getControllerMode()),
+                () -> {
+                    // One tap flips straight between the two hand-tracking modes —
+                    // hand gestures (the main mode) and the digital controller.
+                    // From a display mode (screen / off) it goes to the
+                    // controller, since the input there is already hand gestures.
+                    setControllerMode(getControllerMode() == QuestN64Overlay.MODE_VIRTUAL
+                            ? QuestN64Overlay.MODE_HANDS : QuestN64Overlay.MODE_VIRTUAL);
+                    showQuestSection(QuestSection.VIRTUAL_CONTROLLER);
+                }));
+        entries.add(new QuestEntry(R.drawable.ic_gamepad, getString(R.string.quest_virtual_place),
+                getString(R.string.quest_virtual_placeSummary), () -> Popups.newInstance(this, STATE_VIRTUAL_PLACE_POPUP)
+                .show(getSupportFragmentManager(), STATE_VIRTUAL_PLACE_POPUP)));
+        entries.add(new QuestEntry(R.drawable.ic_help, getString(R.string.quest_virtual_tips),
+                getString(R.string.quest_virtual_tipsSummary), () -> Popups.newInstance(this, STATE_VIRTUAL_TIPS_POPUP)
+                .show(getSupportFragmentManager(), STATE_VIRTUAL_TIPS_POPUP)));
+    }
 
     private void updateQuestLibraryCount(List<GalleryItem> shownItems)
     {
