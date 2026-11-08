@@ -111,7 +111,7 @@
     <string name="quest_ar_tips">AR tips</string>
     <string name="quest_ar_tipsSummary">Light, tracking and switching back</string>
     <string name="quest_ar_tips_text">• AR mode is the passthrough toggle: the game floats in your room instead of filling the view.\n• Hand tracking needs light — a dim room makes it worse.\n• To switch back to VR: hold the right pinky pinch to open the VR menu, move the highlight to Passthrough, and tap right index finger. The game returns to the big VR screen.\n• Games that use immersive fullscreen open as a floating screen while AR mode is on.\n• Your room stays private: the headset shows it to you only — nothing is recorded or sent anywhere.</string>
-        <string name="quest_virtualController">Digital controller</string>
+    <string name="quest_virtualController">Digital controller</string>
         <string name="quest_virtualController_subtitle">A 3D N64 controller you can pick up</string>
         <string name="quest_virtual_handMode">Hand mode</string>
         <string name="quest_handGestures">Hand gestures</string>
