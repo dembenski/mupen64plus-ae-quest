@@ -1,13 +1,13 @@
-
 android {
     compileSdkVersion 36
     ndkVersion="26.1.10909125"
+
 
     defaultConfig {
         minSdkVersion 28
         targetSdkVersion 36
         // Quest fork, based on Mupen64Plus-AE 3.0.249
-        versionCode = 254
-        versionName = "1.2.2 (Quest)"
+        versionCode = 255
+        versionName = "1.2.3 (Quest)"
     }
 }
