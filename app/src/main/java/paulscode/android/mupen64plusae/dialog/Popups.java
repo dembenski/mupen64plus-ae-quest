@@ -49,6 +49,8 @@ public class Popups extends DialogFragment
     private static final String STATE_HAND_TRACKING_TIPS_POPUP = "STATE_HAND_TRACKING_TIPS_POPUP";
     private static final String STATE_AR_PLACE_POPUP = "STATE_AR_PLACE_POPUP";
     private static final String STATE_AR_TIPS_POPUP = "STATE_AR_TIPS_POPUP";
+    private static final String STATE_VIRTUAL_PLACE_POPUP = "STATE_VIRTUAL_PLACE_POPUP";
+    private static final String STATE_VIRTUAL_TIPS_POPUP = "STATE_VIRTUAL_TIPS_POPUP";
 
     public static Popups newInstance(Context context, String title)
     {
@@ -91,6 +93,14 @@ public class Popups extends DialogFragment
             case STATE_AR_TIPS_POPUP:
                 args.putString(STATE_TITLE, context.getString( R.string.quest_ar_tips ));
                 args.putString(STATE_MESSAGE, context.getString( R.string.quest_ar_tips_text ));
+                break;
+            case STATE_VIRTUAL_PLACE_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_virtual_place ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_virtual_place_text ));
+                break;
+            case STATE_VIRTUAL_TIPS_POPUP:
+                args.putString(STATE_TITLE, context.getString( R.string.quest_virtual_tips ));
+                args.putString(STATE_MESSAGE, context.getString( R.string.quest_virtual_tips_text ));
                 break;
             default:
                 break;
