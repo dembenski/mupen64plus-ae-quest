@@ -972,6 +972,24 @@ void updateGrab(JNIEnv* env, XrState& xr, XrTime time, XrDuration period, const 
                 const XrPosef* head) {
     const bool enabled = xr.grabEnabled && xr.sessionState == XR_SESSION_STATE_FOCUSED;
 
+    // Without controllers there is no grip pose, but a tracked hand still has a
+    // palm pose in the same LOCAL space, so the screen can be grabbed by hand.
+    // Scoped to grabbing only: the 3D controller model keeps its controller poses.
+    XrPosef palmFallback[HAND_COUNT];
+    const XrPosef* grabHands[HAND_COUNT] = {hands[HAND_LEFT], hands[HAND_RIGHT]};
+    if (xr.handTrackingEnabled.load() && xr.handTracker.available()) {
+        for (int hand = 0; hand < HAND_COUNT; ++hand) {
+            if (grabHands[hand] != nullptr) {
+                continue;
+            }
+            const questxr::HandInput& handInput = xr.handTracker.input(hand);
+            if (handInput.active) {
+                palmFallback[hand] = handInput.palmPose;
+                grabHands[hand] = &palmFallback[hand];
+            }
+        }
+    }
+
     if (xr.grabHand >= 0) {
         const int hand = xr.grabHand;
         QuadSettings released;
