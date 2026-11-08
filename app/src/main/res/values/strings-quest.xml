@@ -9,6 +9,7 @@
     <string name="questMenu_controller">Controller display:  ◀ %1$s ▶</string>
     <string name="questMenu_controllerHands">3D N64 in hands</string>
     <string name="questMenu_controllerScreen">2D N64 below screen</string>
+        <string name="questMenu_controllerVirtual">3D N64 you can hold</string>
     <string name="questMenu_controllerOff">Off</string>
     <string name="questMenu_speed">Speed: %1$d %%</string>
     <string name="questMenu_frameLimiter">Frame limiter: %1$s</string>
@@ -24,6 +25,9 @@
     <string name="questMenu_hintNavigate">Stick or point to select  ·  A or trigger: OK  ·  B: back</string>
     <string name="questMenu_modelCredits" translatable="false">3D model: "N64 Controller" by Marshle (formerly CodySmith1), CC BY 4.0, modified</string>
     <string name="questMenu_adjustScreen">Adjust screen</string>
+        <string name="questMenu_placeController">Place controller</string>
+        <string name="questPlace_title">Place controller</string>
+        <string name="questPlace_hint">Hold grip and move: position  ·  A/B: done</string>
     <string name="questAdjust_title">Adjust screen</string>
     <string name="questAdjust_hint">Hold grip and move: position  ·  Stick up/down: size  ·  A/B: done</string>
     <string name="questNetplay_titleHost">NetPlay: host</string>
@@ -82,8 +86,8 @@
     <string name="quest_about_reportBug">Report a problem upstream</string>
     <string name="quest_about_model">3D controller model</string>
     <string name="quest_about_modelSummary">\"N64 Controller\" by Marshle, CC BY 4.0</string>
-    <string name="quest_about_modelUri" translatable="false">https://sketchfab.com/3d-models/n64-controller-8fb694b8c4bf4bbb8bc66f38503f4ffb</string>
-    <string name="quest_handTracking">Hand tracking</string>
+    <string name="quest_about_modelUri" translatable="false">https://sketchfab.com/3d-models/n64-controller-8fb694b8c4bf4bbb8bc66f38503f4ffb</strin
+        <string name="quest_handTracking">Hand tracking</string>
     <string name="quest_handTracking_subtitle">Play without a controller</string>
     <string name="quest_hand_left">Left hand</string>
     <string name="quest_hand_leftSummary">Stick, L, Z and R</string>
@@ -107,6 +111,17 @@
     <string name="quest_ar_tips">AR tips</string>
     <string name="quest_ar_tipsSummary">Light, tracking and switching back</string>
     <string name="quest_ar_tips_text">• AR mode is the passthrough toggle: the game floats in your room instead of filling the view.\n• Hand tracking needs light — a dim room makes it worse.\n• To switch back to VR: hold the right pinky pinch to open the VR menu, move the highlight to Passthrough, and tap right index finger. The game returns to the big VR screen.\n• Games that use immersive fullscreen open as a floating screen while AR mode is on.\n• Your room stays private: the headset shows it to you only — nothing is recorded or sent anywhere.</string>
+        <string name="quest_virtualController">Digital controller</string>
+        <string name="quest_virtualController_subtitle">A 3D N64 controller you can pick up</string>
+        <string name="quest_virtual_handMode">Hand mode</string>
+        <string name="quest_handGestures">Hand gestures</string>
+        <string name="quest_handController">Digital controller</string>
+        <string name="quest_virtual_place">Placing the controller</string>
+        <string name="quest_virtual_placeSummary">Pick it up and put it where you play</string>
+        <string name="quest_virtual_place_text">The digital controller is the 3D N64 controller floating in your room. Pick it up and hold it while you play: it follows your hand, and the game feels your fingers pressing its buttons — thumb on the stick, fingers on A, B, Start, the C-buttons, L, R, Z and the D-pad. Its buttons glow and its stick tilts as you play, so you can see what you are pressing.\n\nTo pick it up: reach for it and hold a grip — left middle-finger pinch, or a right fist. It attaches to your hand. Open your hand to put it down where you are playing; the spot is saved, so next time it is there.\n\nWhile you are holding it, that grip is the hold, not a game button: your Z and D-pad modifier come from pressing the controller's own Z and D-pad instead. The hand that is not holding it keeps working the same way — its fingers press the controller's buttons too. Let go of the controller and you are back to the main hand-gesture mode: left palm is the stick, pinches are the buttons.\n\nTo move it to a new home spot: hold the right pinky pinch for about 1 second to open the VR menu, move the highlight to Place controller, and tap right index finger to pick it. Then hold a grip and move your hand: the controller follows it. Let go to put it down. Tap A or B (right index or middle pinch) when it is where you want it.</string>
+        <string name="quest_virtual_tips">Controller tips</string>
+        <string name="quest_virtual_tipsSummary">Modes, hands and switching back</string>
+        <string name="quest_virtual_tips_text">•  There are two hand-tracking modes, and the main one is never removed: Hand gestures (left palm is the stick, pinches are the buttons) is the default, and Digital controller is the one you hold.\n•  Switching is one tap: in the VR menu, Hand mode flips straight between them; in the library, the Digital controller section's Hand mode tile does the same. No cycling through the screen and off display modes.\n•  The Controller row in the VR menu still cycles the four display modes (3D in hands, 2D below screen, the placed 3D controller, Off) for when you want those.\n•  To hold it, grip close to it: a grip only picks it up when your hand is right next to it, so a Z pinch or D-pad fist made anywhere else stays a game button.\n•  Either hand can pick it up, and one hand is enough to play.\n•  Hand tracking needs light — a dim room makes it worse.</string>
     <string name="quest_scan_folderSummary">Scan a folder and all of its subfolders</string>
     <string name="quest_scan_fileSummary">Add a single ROM file</string>
     <string name="quest_scan_pathSummary">Type a storage path by hand</string>
