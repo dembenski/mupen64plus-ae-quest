@@ -1173,6 +1173,8 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
                 v -> showQuestSection(QuestSection.TOOLS));
         setupQuestRailItem(R.id.railHandTracking, R.drawable.ic_help, R.string.quest_handTracking,
                 v -> showQuestSection(QuestSection.HAND_TRACKING));
+        setupQuestRailItem(R.id.railArMode, R.drawable.ic_stereo_3d, R.string.quest_arMode,
+                v -> showQuestSection(QuestSection.AR_MODE));
         setupQuestRailItem(R.id.railAbout, R.drawable.ic_about, R.string.menuItem_about,
                 v -> showQuestSection(QuestSection.ABOUT));
         updateQuestRailSelection();
