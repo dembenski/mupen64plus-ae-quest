@@ -107,6 +107,15 @@ public class Profile implements Comparable<Profile>
     {
         return comment;
     }
+
+    /**
+     * Whether this profile is "built-in" to the app (vs. user defined).
+     * Built-in profiles are read-only; a user who edits one gets a copy.
+     */
+    public boolean isBuiltin()
+    {
+        return isBuiltin;
+    }
     
     public void setComment(String comment)
     {
