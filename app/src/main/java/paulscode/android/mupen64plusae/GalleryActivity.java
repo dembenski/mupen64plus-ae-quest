@@ -1261,6 +1261,11 @@ public class GalleryActivity extends AppCompatActivity implements PromptConfirmL
             subtitle.setText(R.string.quest_handTracking_subtitle);
             buildQuestHandTracking(entries);
             break;
+            case AR_MODE:
+                title.setText(R.string.quest_arMode);
+                subtitle.setText(R.string.quest_arMode_subtitle);
+                buildQuestArMode(entries);
+                break;
         case ABOUT:
                 title.setText(R.string.menuItem_about);
                 subtitle.setText(R.string.quest_about_subtitle);
