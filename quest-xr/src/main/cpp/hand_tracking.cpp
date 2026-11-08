@@ -248,6 +248,14 @@ void HandTracker::update(XrTime time) {
         out.ringPinch = pinches[2];
         out.littlePinch = pinches[3];
         out.fist = fist;
+        // Fingertip positions for the virtual controller's finger-press
+        // detection. The thumb tip is valid whenever the hand is active
+        // (locateJoints requires it); a finger tip is only valid when that
+        // joint was located this frame.
+        out.thumbTip = thumbTip;
+        for (int finger = 0; finger < 4; ++finger) {
+            out.fingerTipValid[finger] = jointValid(joints[kTipJoints[finger]]);
+            out.fingerTips[finger] = joints[kTipJoints[finger]].pose.position;
     }
 }
 
