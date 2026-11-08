@@ -119,6 +119,47 @@ public abstract class AbstractController
     
     /** The state of all four player controllers. */
     private static final ArrayList<State> sStates = new ArrayList<>();
+
+    /**
+     * True while a keyboard mapped to a player is holding a key down. The Quest
+     * hand controller reads this: while the keyboard owns player 1, the hands'
+     * palm stick and pinches would fight it (hands resting on the keyboard
+     * still move the palm stick), so the hand game-input is skipped until the
+     * last key is released. Menu input is never suppressed. Cleared when the
+     * XR session loses focus, so a key held across a focus loss cannot
+     * suppress the hands forever.
+     */
+    private static volatile boolean sKeyboardActive = false;
+
+    /** The keyboard input codes currently held down, by universal input code. */
+    private static final java.util.HashSet<Integer> sKeyboardDownCodes = new java.util.HashSet<>();
+
+    /**
+     * Notes a keyboard key changing state. Called by PeripheralController for
+     * mapped keyboard inputs only; unmapped keys drive nothing and never
+     * count as the keyboard being in use.
+     */
+    public static void noteKeyboardInput( int inputCode, boolean down )
+    {
+        if( down )
+            sKeyboardDownCodes.add( inputCode );
+        else
+            sKeyboardDownCodes.remove( inputCode );
+        sKeyboardActive = !sKeyboardDownCodes.isEmpty();
+    }
+
+    /** True while a keyboard mapped to a player is holding a key down. */
+    public static boolean isKeyboardActive()
+    {
+        return sKeyboardActive;
+    }
+
+    /** Forgets any held keyboard keys (focus loss / activity pause). */
+    public static void clearKeyboardInput()
+    {
+        sKeyboardDownCodes.clear();
+        sKeyboardActive = false;
+    }
     
     /** The state of this controller. */
     State mState;
