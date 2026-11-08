@@ -923,7 +923,8 @@ public class GameActivity extends AppCompatActivity implements PromptConfirmList
     // than a screen. The height per eye is a per game setting, the width is 4:3.
     private boolean isXrImmersive()
     {
-        return QuestXr.isQuestDevice() && mGamePrefs.stereo3dImmersive;
+        // AR mode shows the game on a floating screen even for immersive games
+        return QuestXr.isQuestDevice() && mGamePrefs.stereo3dImmersive &&!mXrPassthrough;
     }
 
     private int getVideoRenderWidth()
