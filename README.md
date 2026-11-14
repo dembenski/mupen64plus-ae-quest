@@ -1,4 +1,4 @@
-# Vapor64 VR
+# M64Plus Quest
 
 **N64 on the Meta Quest, in VR, with the Touch controllers.**
 
@@ -217,47 +217,17 @@ per game settings in its `GLideN64.custom.ini`.
 
 GPL-3.0, like the project it comes from. See [gpl-license](gpl-license).
 
-# Vapor64 VR — Hand tracking how-to (no controller needed)
+## Find Michael & Bit everywhere
 
-Your hands are the controller. Pinches are quick taps — pinch and let go.
-
-## Move and look
-
-- **Move (stick):** move your **left palm** — push forward to go up, pull back to go down
-- **Camera (C-buttons):** move your **right palm**
-
-## Buttons (pinch thumb + finger)
-
-| Pinch | Button |
-|---|---|
-| Right thumb + index finger | A |
-| Right thumb + middle finger | B |
-| Left thumb + index finger | L |
-| Left thumb + middle finger | Z |
-| Left thumb + ring finger | R |
-| Right thumb + little finger, **quick tap** | Start |
-| Right thumb + little finger, **hold ~1 second** | VR menu |
-
-## The menu
-
-- Move your **left palm** to move the highlight, **tap right pinky** to pick.
-- Tip: if the menu keeps opening instead of Start, snap the pinky pinch faster — like snapping your fingers.
-
-## Tips
-
-- Hand tracking needs light — a dim room makes it worse.
-- If a hand leaves the headset's view, its buttons release — nothing gets stuck.
-- Pick up a controller any time and it takes over from that hand instantly; put it down and the hand takes over again.
-
-
-
-
-
-
-
-
-
-
-
-
-
+- 🎮 [Share My Games](https://dembenski.github.io/games/all-games.html) — the 1,092-game SHARE MY GAME directory
+- 📸 [Instagram — @8bitvapor.builds](https://www.instagram.com/8bitvapor.builds/)
+- 📘 [Facebook](https://www.facebook.com/Dembenski.M)
+- 📺 [YouTube — @8bitvapor](https://www.youtube.com/@8bitvapor)
+- 🎵 [TikTok — @8bitvapor](https://www.tiktok.com/@8bitvapor)
+- 🕹️ [itch.io](https://8bitvapor.itch.io/)
+- 💻 [CodePen](https://codepen.io/Michael-Dembenski)
+- 🐙 [GitHub](https://github.com/dembenski)
+- 💼 [Contra](https://contra.com/michael_dembenski_vi99zv4l/about)
+- 🌐 [Horizon Worlds profile](https://horizon.meta.com/profile/8bitvap0r/)
+- 🎮 [Games Hub](https://dembenski.github.io/games/)
+- 🥽 [Vapor64 VR on SideQuest](https://sidequestvr.com/app/64032/vapor64-vr)
